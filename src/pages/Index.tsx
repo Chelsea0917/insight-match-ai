@@ -4,6 +4,7 @@ import { RequirementProfile, MatchedCompany } from '@/types/company';
 import { companies as companyData } from '@/data/companies';
 import { analyzeRequirementWithAI, matchCompaniesWithAI } from '@/utils/ai';
 import { RequirementInput } from '@/components/RequirementInput';
+import { NewsList } from '@/components/NewsList';
 import { Sparkles, Building2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -65,39 +66,39 @@ const Index = () => {
         </div>
       </header>
 
-      {/* Main Content - Centered */}
-      <main className="flex-1 container mx-auto px-4 py-12 flex items-center justify-center">
-        <div className="w-full max-w-2xl">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/10 mb-4">
-              <Sparkles className="h-8 w-8 text-primary" />
+      {/* Main Content */}
+      <main className="flex-1 container mx-auto px-4 py-8 md:py-12">
+        <div className="w-full max-w-2xl mx-auto">
+          {/* Search Section */}
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-primary/10 mb-3">
+              <Sparkles className="h-7 w-7 text-primary" />
             </div>
-            <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
+            <h2 className="text-xl md:text-2xl font-bold text-foreground mb-2">
               智能匹配目标企业
             </h2>
-            <p className="text-muted-foreground max-w-md mx-auto">
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
               用自然语言描述您的招商需求，AI 将自动理解并匹配最合适的企业
             </p>
           </div>
 
-          <div className="bg-card rounded-xl border border-border p-6 md:p-8">
+          <div className="bg-card rounded-xl border border-border p-5 md:p-6">
             <RequirementInput 
               onSubmit={handleSubmitRequirement}
               isLoading={isLoading}
             />
             
             {isLoading && (
-              <div className="flex flex-col items-center justify-center py-8 mt-4">
-                <div className="h-10 w-10 rounded-full border-4 border-primary border-t-transparent animate-spin mb-3" />
-                <p className="text-muted-foreground">正在智能匹配企业...</p>
-                <p className="text-sm text-muted-foreground mt-1">AI 正在分析您的需求</p>
+              <div className="flex flex-col items-center justify-center py-6 mt-4">
+                <div className="h-8 w-8 rounded-full border-4 border-primary border-t-transparent animate-spin mb-2" />
+                <p className="text-sm text-muted-foreground">正在智能匹配企业...</p>
               </div>
             )}
           </div>
 
           {/* Example prompts */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-muted-foreground mb-3">示例需求：</p>
+          <div className="mt-4 text-center">
+            <p className="text-xs text-muted-foreground mb-2">示例需求：</p>
             <div className="flex flex-wrap justify-center gap-2">
               {[
                 "找2023年以后在长三角做AI医疗的公司",
@@ -114,6 +115,11 @@ const Index = () => {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* News Section */}
+          <div className="mt-8">
+            <NewsList />
           </div>
         </div>
       </main>
