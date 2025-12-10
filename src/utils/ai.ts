@@ -1,77 +1,69 @@
 import { Company, RequirementProfile, MatchedCompany, CompanyAnalysis } from '@/types/company';
+import { supabase } from '@/integrations/supabase/client';
 
-// Placeholder for LLM API call - to be replaced with actual API integration
-async function callLLM(prompt: string): Promise<string> {
-  // TODO: Replace with actual LLM API call
-  console.log('LLM Prompt:', prompt);
-  
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  
-  // This is a placeholder - in production, this would call the actual LLM API
-  throw new Error('LLM API not configured');
-}
-
-// Prompt template for requirement analysis
-const REQUIREMENT_ANALYSIS_PROMPT = `你是招商助手，请阅读用户的一段招商需求文本，提取出结构化筛选条件，并用 JSON 返回。
-
-【用户需求】：
-{{requirementText}}
-
+// Prompt templates for system messages
+const REQUIREMENT_ANALYSIS_SYSTEM = `你是招商助手，请阅读用户的一段招商需求文本，提取出结构化筛选条件。
 请抽取：
 - region_preference：地域/城市/区域关键词列表
 - industry_preference：行业/赛道关键词列表
 - stage_preference：融资轮次（如：天使轮、A轮、B轮等）
 - time_window：如果提到最近几年/某个时间段，请解析为描述字符串
 - extra_preferences：其它偏好（如是否有头部基金、是否已商业化、是否团队在扩张等）
-- scenario：适配场景（如：产业园、总部办公、实验室、制造工厂等的推理）
+- scenario：适配场景（如：产业园、总部办公、实验室、制造工厂等的推理）`;
 
-以 JSON 格式输出，仅输出 JSON，不附加解释。`;
+const COMPANY_MATCHING_SYSTEM = `你是招商匹配引擎，请根据"用户需求画像"和"候选企业列表"，为每家企业打一个0-100的匹配分数，并给出一行中文理由。
+评分标准：
+- 地域匹配：30分
+- 行业匹配：30分
+- 融资阶段匹配：20分
+- 其他偏好匹配：20分`;
 
-// Prompt template for company matching
-const COMPANY_MATCHING_PROMPT = `你是招商匹配引擎，请根据"用户需求画像"和"候选企业列表"，为每家企业打一个0-100的匹配分数，并给出一行中文理由。
-
-【用户需求画像】：
-{{requirementProfile}}
-
-【候选企业列表】（JSON数组，每条包含：name/city/industry/track/last_round/last_round_date/investors/business_summary等字段）：
-{{candidateCompanies}}
-
-请输出 JSON 数组，每个元素格式：
-{
-  "company_id": "...",
-  "match_score": 0-100,
-  "match_reason": "一句话说明为什么这家公司符合用户需求"
-}
-
-只输出 JSON，不要附加其他文字。`;
-
-// Prompt template for single company analysis
-const COMPANY_ANALYSIS_PROMPT = `你是招商顾问。根据【用户需求】与【公司信息】，用简短中文给出招商视角的分析。
-
-【用户需求】：
-{{requirementText}}
-
-【公司信息】：
-{{company}}
-
-请回答：
+const COMPANY_ANALYSIS_SYSTEM = `你是招商顾问。根据用户需求与公司信息，用简短中文给出招商视角的分析。
+请分析：
 1. 这家公司与用户需求的匹配点（2-3条）
 2. 主要风险或不确定性（1-2条）
 3. 适合什么样的园区或载体（写一句话）
-4. 最终建议：推荐 / 谨慎推荐 / 不推荐（并用一句话说明原因）
+4. 最终建议：推荐 / 谨慎推荐 / 不推荐（并用一句话说明原因）`;
 
-用分点形式输出即可。`;
+// Call AI API through edge function
+async function callAI(messages: { role: string; content: string }[], type: string): Promise<unknown> {
+  const { data, error } = await supabase.functions.invoke('ai-chat', {
+    body: { messages, type }
+  });
+
+  if (error) {
+    console.error('AI API error:', error);
+    throw new Error(error.message || 'AI API call failed');
+  }
+
+  if (!data.success) {
+    console.error('AI API returned error:', data.error);
+    throw new Error(data.error || 'AI API returned error');
+  }
+
+  return data.data;
+}
 
 // Analyze requirement with AI
 export async function analyzeRequirementWithAI(requirementText: string): Promise<RequirementProfile> {
-  const prompt = REQUIREMENT_ANALYSIS_PROMPT.replace('{{requirementText}}', requirementText);
-  
   try {
-    const response = await callLLM(prompt);
-    return JSON.parse(response);
+    const messages = [
+      { role: 'system', content: REQUIREMENT_ANALYSIS_SYSTEM },
+      { role: 'user', content: `请分析以下招商需求：\n\n${requirementText}` }
+    ];
+    
+    const result = await callAI(messages, 'parse_requirement') as RequirementProfile;
+    
+    return {
+      region_preference: result.region_preference || [],
+      industry_preference: result.industry_preference || [],
+      stage_preference: result.stage_preference || [],
+      time_window: result.time_window || '',
+      extra_preferences: result.extra_preferences || [],
+      scenario: result.scenario || ''
+    };
   } catch (error) {
-    // Fallback: Simple keyword-based parsing for demo purposes
+    console.error('AI requirement analysis failed, using local fallback:', error);
     return parseRequirementLocally(requirementText);
   }
 }
@@ -84,33 +76,44 @@ export async function matchCompaniesWithAI(
   // First, pre-filter companies based on basic criteria
   const candidateCompanies = preFilterCompanies(requirementProfile, companies);
   
-  const prompt = COMPANY_MATCHING_PROMPT
-    .replace('{{requirementProfile}}', JSON.stringify(requirementProfile, null, 2))
-    .replace('{{candidateCompanies}}', JSON.stringify(candidateCompanies.map(c => ({
-      id: c.id,
-      name: c.name,
-      city: c.city,
-      province: c.province,
-      industry: c.industry,
-      track: c.track,
-      last_round: c.last_round,
-      last_round_date: c.last_round_date,
-      investors: c.investors,
-      business_summary: c.business_summary,
-      growth_stage: c.growth_stage,
-      tags: c.tags
-    })), null, 2));
-  
   try {
-    const response = await callLLM(prompt);
-    const matchResults = JSON.parse(response);
+    const messages = [
+      { role: 'system', content: COMPANY_MATCHING_SYSTEM },
+      { 
+        role: 'user', 
+        content: `【用户需求画像】：
+${JSON.stringify(requirementProfile, null, 2)}
+
+【候选企业列表】：
+${JSON.stringify(candidateCompanies.map(c => ({
+  id: c.id,
+  name: c.name,
+  city: c.city,
+  province: c.province,
+  industry: c.industry,
+  track: c.track,
+  last_round: c.last_round,
+  last_round_date: c.last_round_date,
+  investors: c.investors,
+  business_summary: c.business_summary,
+  growth_stage: c.growth_stage,
+  tags: c.tags
+})), null, 2)}
+
+请为每家企业打分并说明理由。`
+      }
+    ];
     
-    return matchResults.map((result: { company_id: string; match_score: number; match_reason: string }) => ({
-      ...result,
-      company: companies.find(c => c.id === result.company_id)!
-    })).sort((a: MatchedCompany, b: MatchedCompany) => b.match_score - a.match_score);
+    const result = await callAI(messages, 'match_companies') as { matches: { company_id: string; score: number; reason: string }[] };
+    
+    return result.matches.map((match) => ({
+      company_id: match.company_id,
+      match_score: match.score,
+      match_reason: match.reason,
+      company: companies.find(c => c.id === match.company_id)!
+    })).filter(m => m.company).sort((a, b) => b.match_score - a.match_score);
   } catch (error) {
-    // Fallback: Local matching for demo purposes
+    console.error('AI company matching failed, using local fallback:', error);
     return matchCompaniesLocally(requirementProfile, candidateCompanies);
   }
 }
@@ -120,15 +123,38 @@ export async function analyzeSingleCompanyForRequirement(
   requirementText: string,
   company: Company
 ): Promise<CompanyAnalysis> {
-  const prompt = COMPANY_ANALYSIS_PROMPT
-    .replace('{{requirementText}}', requirementText)
-    .replace('{{company}}', JSON.stringify(company, null, 2));
-  
   try {
-    const response = await callLLM(prompt);
-    return parseCompanyAnalysis(response);
+    const messages = [
+      { role: 'system', content: COMPANY_ANALYSIS_SYSTEM },
+      { 
+        role: 'user', 
+        content: `【用户需求】：
+${requirementText}
+
+【公司信息】：
+${JSON.stringify(company, null, 2)}
+
+请给出招商分析建议。`
+      }
+    ];
+    
+    const result = await callAI(messages, 'analyze_company') as {
+      alignment_rationale: string;
+      risks: string[];
+      venue_recommendation: string;
+      recommendation: string;
+      recommendation_rationale: string;
+    };
+    
+    return {
+      matchPoints: [result.alignment_rationale],
+      risks: result.risks,
+      suitableVenue: result.venue_recommendation,
+      recommendation: result.recommendation as '推荐' | '谨慎推荐' | '不推荐',
+      recommendationReason: result.recommendation_rationale
+    };
   } catch (error) {
-    // Fallback: Generate local analysis for demo
+    console.error('AI company analysis failed, using local fallback:', error);
     return generateLocalAnalysis(requirementText, company);
   }
 }
@@ -388,17 +414,6 @@ function matchCompaniesLocally(profile: RequirementProfile, companies: Company[]
       company
     };
   }).sort((a, b) => b.match_score - a.match_score);
-}
-
-function parseCompanyAnalysis(_response: string): CompanyAnalysis {
-  // This would parse the LLM response in production
-  return {
-    matchPoints: [],
-    risks: [],
-    suitableVenue: '',
-    recommendation: '推荐',
-    recommendationReason: ''
-  };
 }
 
 function generateLocalAnalysis(requirementText: string, company: Company): CompanyAnalysis {
