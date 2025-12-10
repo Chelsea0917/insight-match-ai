@@ -3,14 +3,8 @@ import { NewsListItem } from './NewsListItem';
 import { Newspaper } from 'lucide-react';
 
 export const NewsList = () => {
-  // Filter news from last 7 days
-  const oneWeekAgo = new Date();
-  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-  const recentNews = newsData.filter(news => {
-    const newsDate = new Date(news.publishDate);
-    return newsDate >= oneWeekAgo;
-  });
+  // Display all news (in production, would filter by date and user preferences)
+  const recentNews = newsData;
 
   return (
     <div className="bg-card rounded-xl border border-border">
