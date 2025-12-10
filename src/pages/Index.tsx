@@ -96,27 +96,6 @@ const Index = () => {
             )}
           </div>
 
-          {/* Example prompts */}
-          <div className="mt-4 text-center">
-            <p className="text-xs text-muted-foreground mb-2">示例需求：</p>
-            <div className="flex flex-wrap justify-center gap-2">
-              {[
-                "找2023年以后在长三角做AI医疗的公司",
-                "深圳智能制造企业，有头部基金投资",
-                "上海/苏州B轮融资的SaaS公司"
-              ].map((example, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleSubmitRequirement(example)}
-                  disabled={isLoading}
-                  className="text-xs px-3 py-1.5 rounded-full bg-muted hover:bg-muted/80 text-muted-foreground transition-colors disabled:opacity-50"
-                >
-                  {example}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* News Section */}
           <div className="mt-8">
             <NewsList />
