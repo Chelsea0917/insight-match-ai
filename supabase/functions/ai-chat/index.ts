@@ -21,10 +21,24 @@ serve(async (req) => {
     const { messages, type } = await req.json();
     console.log('Received request:', { type, messagesCount: messages?.length });
 
+    // 获取当前日期用于提示词
+    const currentDate = new Date().toISOString().split('T')[0];
+
+    // 为搜索类请求注入当前日期上下文
+    const enhancedMessages = messages.map((msg: { role: string; content: string }, index: number) => {
+      if (type === 'search_companies' && msg.role === 'system') {
+        return {
+          ...msg,
+          content: `当前日期：${currentDate}。${msg.content}请确保返回的公司融资信息是最新的、真实存在的数据，融资日期应尽量接近当前日期或用户指定的时间范围。`
+        };
+      }
+      return msg;
+    });
+
     // Build the request body based on type
     const body: Record<string, unknown> = {
       model: 'deepseek-chat',  // 兔子API - DeepSeek模型
-      messages,
+      messages: enhancedMessages,
     };
 
     // For structured output (requirement parsing, company matching), use tool calling
