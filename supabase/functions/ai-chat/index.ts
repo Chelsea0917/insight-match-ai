@@ -145,18 +145,40 @@ serve(async (req) => {
       ];
       body.tool_choice = { type: 'function', function: { name: 'analyze_company' } };
     } else if (type === 'search_news') {
-      // 使用Kimi联网搜索真实新闻
-      // 使用支持联网搜索的模型
-      body.model = 'moonshot-v1-32k';
-      // 启用Kimi内置联网搜索工具
+      // 使用tool calling获取结构化新闻数据
       body.tools = [
         {
-          type: 'builtin_function',
+          type: 'function',
           function: {
-            name: '$web_search'
+            name: 'return_news',
+            description: '返回投资融资相关新闻列表',
+            parameters: {
+              type: 'object',
+              properties: {
+                news: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      title: { type: 'string', description: '新闻标题' },
+                      summary: { type: 'string', description: '40-60字摘要' },
+                      source: { type: 'string', description: '来源媒体' },
+                      publishDate: { type: 'string', description: '日期YYYY-MM-DD' },
+                      category: { type: 'string', description: '分类' },
+                      content: { type: 'string', description: '100-150字内容' },
+                      relatedKeywords: { type: 'array', items: { type: 'string' } }
+                    },
+                    required: ['id', 'title', 'summary', 'source', 'publishDate', 'category', 'content', 'relatedKeywords']
+                  }
+                }
+              },
+              required: ['news']
+            }
           }
         }
       ];
+      body.tool_choice = { type: 'function', function: { name: 'return_news' } };
     }
 
     console.log('Calling Kimi API...');
