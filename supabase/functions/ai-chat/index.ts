@@ -145,40 +145,18 @@ serve(async (req) => {
       ];
       body.tool_choice = { type: 'function', function: { name: 'analyze_company' } };
     } else if (type === 'search_news') {
-      // 实时搜索最近一周的投资资讯
+      // 使用Kimi联网搜索真实新闻
+      // 切换到支持联网搜索的模型
+      body.model = 'moonshot-v1-128k-latest';
+      // 启用Kimi内置联网搜索工具
       body.tools = [
         {
-          type: 'function',
+          type: 'builtin_function',
           function: {
-            name: 'search_news',
-            description: '搜索最近一周的投资资讯，返回5-8条',
-            parameters: {
-              type: 'object',
-              properties: {
-                news: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      id: { type: 'string', description: '资讯ID' },
-                      title: { type: 'string', description: '标题' },
-                      summary: { type: 'string', description: '摘要30-50字' },
-                      source: { type: 'string', description: '来源' },
-                      publishDate: { type: 'string', description: '日期YYYY-MM-DD' },
-                      category: { type: 'string', description: '分类' },
-                      content: { type: 'string', description: '内容80-150字' },
-                      relatedKeywords: { type: 'array', items: { type: 'string' }, description: '2-3个关键词' }
-                    },
-                    required: ['id', 'title', 'summary', 'source', 'publishDate', 'category', 'content', 'relatedKeywords']
-                  }
-                }
-              },
-              required: ['news']
-            }
+            name: '$web_search'
           }
         }
       ];
-      body.tool_choice = { type: 'function', function: { name: 'search_news' } };
     }
 
     console.log('Calling Kimi API...');
@@ -225,39 +203,47 @@ serve(async (req) => {
 
     // Extract tool call result if applicable
     let result;
+    const messageContent = data.choices?.[0]?.message?.content || '';
+    
     if (data.choices?.[0]?.message?.tool_calls?.length > 0) {
       const toolCall = data.choices[0].message.tool_calls[0];
       try {
         result = JSON.parse(toolCall.function.arguments);
       } catch (parseError) {
-        console.error('Failed to parse tool call arguments:', toolCall.function.arguments?.slice(0, 500));
-        // Try to fix truncated JSON by finding last complete object
-        const args = toolCall.function.arguments || '';
-        // For news array, try to extract valid items
-        if (type === 'search_news' && args.includes('"news"')) {
-          const newsMatch = args.match(/"news"\s*:\s*\[/);
-          if (newsMatch) {
-            // Find all complete news objects
-            const items: unknown[] = [];
-            const regex = /\{[^{}]*"id"\s*:\s*"[^"]*"[^{}]*"title"\s*:\s*"[^"]*"[^{}]*\}/g;
-            let match;
-            while ((match = regex.exec(args)) !== null) {
-              try {
-                items.push(JSON.parse(match[0]));
-              } catch { /* skip invalid item */ }
-            }
-            if (items.length > 0) {
-              result = { news: items };
-            }
-          }
+        console.error('Failed to parse tool call arguments:', String(parseError));
+        throw new Error('AI返回的数据格式异常，请重试');
+      }
+    } else if (type === 'search_news' && messageContent) {
+      // 处理联网搜索返回的文本内容，提取JSON
+      console.log('Processing web search response for news');
+      try {
+        // 尝试从返回的文本中提取JSON
+        const jsonMatch = messageContent.match(/\{[\s\S]*"news"[\s\S]*\}/);
+        if (jsonMatch) {
+          result = JSON.parse(jsonMatch[0]);
+        } else {
+          // 如果没有JSON格式，尝试解析整个内容
+          result = JSON.parse(messageContent);
         }
-        if (!result) {
-          throw new Error('AI返回的数据格式异常，请重试');
+      } catch (parseError) {
+        console.error('Failed to parse news JSON from content:', String(parseError));
+        console.log('Raw content:', messageContent.slice(0, 1000));
+        
+        // 尝试从markdown代码块中提取JSON
+        const codeBlockMatch = messageContent.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (codeBlockMatch) {
+          try {
+            result = JSON.parse(codeBlockMatch[1].trim());
+          } catch {
+            throw new Error('无法解析新闻数据，请重试');
+          }
+        } else {
+          throw new Error('无法解析新闻数据，请重试');
         }
       }
     } else {
       result = {
-        content: data.choices?.[0]?.message?.content || ''
+        content: messageContent
       };
     }
 
