@@ -26,17 +26,16 @@ function getTodayString(): string {
   return new Date().toISOString().split('T')[0];
 }
 
-// 从localStorage读取缓存的新闻
-function getCachedNews(): DisplayNewsItem[] | null {
+// 从localStorage读取缓存的新闻（不管日期，先返回数据）
+function getCachedNews(): { news: DisplayNewsItem[] | null; isStale: boolean } {
   try {
-    const cachedDate = localStorage.getItem(NEWS_CACHE_DATE_KEY);
-    if (cachedDate !== getTodayString()) {
-      return null; // 不是今天的缓存，返回null
-    }
     const cached = localStorage.getItem(NEWS_CACHE_KEY);
-    return cached ? JSON.parse(cached) : null;
+    const cachedDate = localStorage.getItem(NEWS_CACHE_DATE_KEY);
+    const news = cached ? JSON.parse(cached) : null;
+    const isStale = cachedDate !== getTodayString();
+    return { news, isStale };
   } catch {
-    return null;
+    return { news: null, isStale: true };
   }
 }
 
@@ -86,20 +85,30 @@ export const NewsList = () => {
   const [news, setNews] = useState<DisplayNewsItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchNews = async () => {
-    // 先检查缓存
-    const cachedNews = getCachedNews();
+  const fetchNews = async (forceRefresh = false) => {
+    // 先立即显示缓存的新闻（即使是旧的）
+    const { news: cachedNews, isStale } = getCachedNews();
+    
     if (cachedNews && cachedNews.length > 0) {
-      console.log('Using cached news from today');
       setNews(cachedNews);
       setIsLoading(false);
-      return;
+      
+      // 如果不强制刷新且缓存是今天的，直接返回
+      if (!forceRefresh && !isStale) {
+        console.log('Using fresh cached news from today');
+        return;
+      }
+      
+      // 缓存是旧的，后台静默更新
+      console.log('Showing stale cache, fetching fresh news in background');
     }
 
-    // 没有缓存，从API获取
-    try {
+    // 没有缓存或缓存过期，需要加载
+    if (!cachedNews || cachedNews.length === 0) {
       setIsLoading(true);
-      
+    }
+
+    try {
       const aiNews = await searchNewsWithAI();
       
       // 转换为显示格式，直接使用分类默认图片（AI返回的图片URL不可用）
@@ -120,7 +129,10 @@ export const NewsList = () => {
       setNews(displayNews);
     } catch (error) {
       console.error('Failed to fetch news:', error);
-      toast.error('获取资讯失败，请稍后重试');
+      // 如果获取失败但有缓存，保持显示缓存内容
+      if (!cachedNews || cachedNews.length === 0) {
+        toast.error('获取资讯失败，请稍后重试');
+      }
     } finally {
       setIsLoading(false);
     }
