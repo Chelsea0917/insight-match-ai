@@ -14,7 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      daily_news: {
+        Row: {
+          amount: string | null
+          category: string | null
+          company: string | null
+          content: string | null
+          created_at: string
+          id: string
+          industry: string | null
+          investors: string | null
+          news_date: string
+          publish_date: string | null
+          thumbnail: string | null
+          title: string
+        }
+        Insert: {
+          amount?: string | null
+          category?: string | null
+          company?: string | null
+          content?: string | null
+          created_at?: string
+          id?: string
+          industry?: string | null
+          investors?: string | null
+          news_date?: string
+          publish_date?: string | null
+          thumbnail?: string | null
+          title: string
+        }
+        Update: {
+          amount?: string | null
+          category?: string | null
+          company?: string | null
+          content?: string | null
+          created_at?: string
+          id?: string
+          industry?: string | null
+          investors?: string | null
+          news_date?: string
+          publish_date?: string | null
+          thumbnail?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
