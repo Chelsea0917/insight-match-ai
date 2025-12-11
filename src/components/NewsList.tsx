@@ -18,7 +18,7 @@ interface DisplayNewsItem {
   relatedKeywords: string[];
 }
 
-// Generate placeholder thumbnail based on category
+// Generate fallback thumbnail based on category
 function getCategoryThumbnail(category: string): string {
   const thumbnails: Record<string, string> = {
     'AI': 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=200&h=150&fit=crop',
@@ -34,6 +34,9 @@ function getCategoryThumbnail(category: string): string {
     'SaaS': 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=200&h=150&fit=crop',
     '清洁能源': 'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=200&h=150&fit=crop',
     '跨境电商': 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=200&h=150&fit=crop',
+    '融资': 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=200&h=150&fit=crop',
+    '并购': 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=200&h=150&fit=crop',
+    'IPO': 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=200&h=150&fit=crop',
   };
   
   return thumbnails[category] || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=200&h=150&fit=crop';
@@ -54,10 +57,18 @@ export const NewsList = () => {
       
       const aiNews = await searchNewsWithAI();
       
+      // 转换为显示格式，优先使用AI返回的图片，否则使用分类默认图
       const displayNews: DisplayNewsItem[] = aiNews.map((item: AINewsItem) => ({
         ...item,
-        thumbnail: getCategoryThumbnail(item.category)
+        thumbnail: item.imageUrl || getCategoryThumbnail(item.category)
       }));
+      
+      // 按时间排序：从最近到最远
+      displayNews.sort((a, b) => {
+        const dateA = new Date(a.publishDate).getTime();
+        const dateB = new Date(b.publishDate).getTime();
+        return dateB - dateA;
+      });
       
       setNews(displayNews);
       

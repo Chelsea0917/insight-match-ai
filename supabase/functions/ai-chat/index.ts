@@ -151,7 +151,7 @@ serve(async (req) => {
           type: 'function',
           function: {
             name: 'return_news',
-            description: '返回最近一周内的5条投资融资或行业重要新闻，要求内容完整详实',
+            description: '返回最近一周内的5条投资融资或行业重要新闻，按发布时间从最近到最远排序，要求内容完整详实',
             parameters: {
               type: 'object',
               properties: {
@@ -172,7 +172,8 @@ serve(async (req) => {
                       companyName: { type: 'string', description: '涉及的主要公司名称' },
                       industry: { type: 'string', description: '所属行业' },
                       fundingAmount: { type: 'string', description: '融资金额（如有）' },
-                      investors: { type: 'array', items: { type: 'string' }, description: '投资方列表（如有）' }
+                      investors: { type: 'array', items: { type: 'string' }, description: '投资方列表（如有）' },
+                      imageUrl: { type: 'string', description: '新闻配图URL，从原始新闻来源获取的真实图片链接' }
                     },
                     required: ['id', 'title', 'summary', 'source', 'publishDate', 'category', 'content', 'relatedKeywords']
                   }
