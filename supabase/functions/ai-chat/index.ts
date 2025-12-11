@@ -12,10 +12,10 @@ serve(async (req) => {
   }
 
   try {
-    const DEEPSEEK_API_KEY = Deno.env.get('DEEPSEEK_API_KEY');
-    if (!DEEPSEEK_API_KEY) {
-      console.error('DEEPSEEK_API_KEY is not configured');
-      throw new Error('DEEPSEEK_API_KEY is not configured');
+    const KIMI_API_KEY = Deno.env.get('KIMI_API_KEY');
+    if (!KIMI_API_KEY) {
+      console.error('KIMI_API_KEY is not configured');
+      throw new Error('KIMI_API_KEY is not configured');
     }
 
     const { messages, type } = await req.json();
@@ -23,7 +23,7 @@ serve(async (req) => {
 
     // Build the request body based on type
     const body: Record<string, unknown> = {
-      model: 'deepseek-chat',
+      model: 'moonshot-v1-8k',
       messages,
     };
 
@@ -130,13 +130,13 @@ serve(async (req) => {
       body.tool_choice = { type: 'function', function: { name: 'analyze_company' } };
     }
 
-    console.log('Calling DeepSeek API...');
+    console.log('Calling Kimi API...');
     
-    // 调用 DeepSeek API
-    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    // 调用 Kimi API (月之暗面)
+    const response = await fetch('https://api.moonshot.cn/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+        'Authorization': `Bearer ${KIMI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
@@ -144,7 +144,7 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('DeepSeek API error:', response.status, errorText);
+      console.error('Kimi API error:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ 
@@ -166,11 +166,11 @@ serve(async (req) => {
         });
       }
       
-      throw new Error(`DeepSeek API error: ${response.status} - ${errorText}`);
+      throw new Error(`Kimi API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('DeepSeek API response received');
+    console.log('Kimi API response received');
 
     // Extract tool call result if applicable
     let result;
