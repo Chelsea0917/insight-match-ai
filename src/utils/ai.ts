@@ -24,10 +24,31 @@ const COMPANY_ANALYSIS_SYSTEM = `你是招商顾问。根据用户需求与公�
 3. 适合什么样的园区或载体（写一句话）
 4. 最终建议：推荐 / 谨慎推荐 / 不推荐（并用一句话说明原因）`;
 
-const NEWS_SEARCH_SYSTEM = `你是投资资讯搜索引擎，请生成最近一周的投资、创业、融资相关资讯。
-生成5-8条资讯，涵盖热门赛道。
-每条资讯需要：标题、摘要（30-50字）、来源、发布日期（YYYY-MM-DD）、分类、内容（80-150字）、关键词（2-3个）。
-保持简洁。`;
+const NEWS_SEARCH_SYSTEM = `你是资讯推荐引擎。请使用联网搜索功能，搜索并推荐最近一周内**真实发布的**投资、创业、融资相关新闻报道。
+
+【必须遵守的规则】
+1. 必须是媒体已经发布的真实新闻（如36氪、投资界、钛媒体、界面新闻、证券时报等）
+2. 必须是真实发生的新闻事件，绝对不要编造或虚构内容
+3. 每条新闻必须包含真实的来源媒体名称和准确的发布日期
+
+【输出格式】
+请以JSON格式返回5-8条新闻，格式如下：
+{
+  "news": [
+    {
+      "id": "news_1",
+      "title": "真实新闻标题",
+      "summary": "30-50字摘要",
+      "source": "来源媒体名称",
+      "publishDate": "YYYY-MM-DD",
+      "category": "分类如AI/新能源/医疗等",
+      "content": "80-150字新闻内容",
+      "relatedKeywords": ["关键词1", "关键词2"]
+    }
+  ]
+}
+
+请先搜索最新的投资融资新闻，然后整理成上述格式返回。`;
 
 // Call AI API through edge function
 async function callAI(messages: { role: string; content: string }[], type: string): Promise<unknown> {
@@ -193,7 +214,7 @@ export interface AINewsItem {
   relatedKeywords: string[];
 }
 
-// Search news with AI (real-time generation)
+// Search news with AI (real-time web search for real news)
 export async function searchNewsWithAI(): Promise<AINewsItem[]> {
   try {
     const today = new Date();
@@ -203,7 +224,13 @@ export async function searchNewsWithAI(): Promise<AINewsItem[]> {
       { role: 'system', content: NEWS_SEARCH_SYSTEM },
       { 
         role: 'user', 
-        content: `请生成最近一周（${weekAgo.toISOString().split('T')[0]} 至 ${today.toISOString().split('T')[0]}）的投资资讯，5-8条。`
+        content: `请联网搜索 ${weekAgo.toISOString().split('T')[0]} 至 ${today.toISOString().split('T')[0]} 期间的真实投资融资新闻报道。
+
+要求：
+- 必须是真实发布的新闻，不要编造
+- 来源必须是真实的媒体（如36氪、投资界、钛媒体、界面新闻、证券时报等）
+- 涵盖AI、新能源、医疗健康、半导体等热门赛道
+- 返回5-8条新闻，按JSON格式输出`
       }
     ];
     
