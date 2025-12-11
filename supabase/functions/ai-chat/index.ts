@@ -23,7 +23,7 @@ serve(async (req) => {
 
     // Build the request body based on type
     const body: Record<string, unknown> = {
-      model: 'gpt-3.5-turbo',  // 兔子API - 使用通用模型
+      model: 'deepseek-chat',  // 兔子API - DeepSeek模型
       messages,
     };
 
