@@ -24,6 +24,11 @@ const COMPANY_ANALYSIS_SYSTEM = `你是招商顾问。根据用户需求与公�
 3. 适合什么样的园区或载体（写一句话）
 4. 最终建议：推荐 / 谨慎推荐 / 不推荐（并用一句话说明原因）`;
 
+const NEWS_SEARCH_SYSTEM = `你是投资资讯搜索引擎，请生成最近一周的投资、创业、融资相关资讯。
+生成10-15条资讯，涵盖：AI、新能源、生物医药、半导体、智能制造、企业服务等热门赛道。
+每条资讯需要：标题、摘要（50-100字）、来源媒体、发布日期（最近7天内）、分类、详细内容（200-500字）、相关关键词。
+资讯应该真实可信，反映当前投资市场热点。`;
+
 // Call AI API through edge function
 async function callAI(messages: { role: string; content: string }[], type: string): Promise<unknown> {
   const { data, error } = await supabase.functions.invoke('ai-chat', {
@@ -173,6 +178,43 @@ ${JSON.stringify(company, null, 2)}
   } catch (error) {
     console.error('AI company analysis failed, using local fallback:', error);
     return generateLocalAnalysis(requirementText, company);
+  }
+}
+
+// News item type
+export interface AINewsItem {
+  id: string;
+  title: string;
+  summary: string;
+  source: string;
+  publishDate: string;
+  category: string;
+  content: string;
+  relatedKeywords: string[];
+}
+
+// Search news with AI (real-time generation)
+export async function searchNewsWithAI(): Promise<AINewsItem[]> {
+  try {
+    const today = new Date();
+    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
+    const messages = [
+      { role: 'system', content: NEWS_SEARCH_SYSTEM },
+      { 
+        role: 'user', 
+        content: `请生成最近一周（${weekAgo.toISOString().split('T')[0]} 至 ${today.toISOString().split('T')[0]}）的投资创业资讯，10-15条。`
+      }
+    ];
+    
+    const result = await callAI(messages, 'search_news') as { 
+      news: AINewsItem[]
+    };
+    
+    return result.news || [];
+  } catch (error) {
+    console.error('AI news search failed:', error);
+    throw error;
   }
 }
 

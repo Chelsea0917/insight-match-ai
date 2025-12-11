@@ -144,6 +144,41 @@ serve(async (req) => {
         }
       ];
       body.tool_choice = { type: 'function', function: { name: 'analyze_company' } };
+    } else if (type === 'search_news') {
+      // 实时搜索最近一周的投资资讯
+      body.tools = [
+        {
+          type: 'function',
+          function: {
+            name: 'search_news',
+            description: '搜索最近一周的投资、创业、融资相关资讯新闻',
+            parameters: {
+              type: 'object',
+              properties: {
+                news: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string', description: '资讯唯一ID' },
+                      title: { type: 'string', description: '资讯标题' },
+                      summary: { type: 'string', description: '资讯摘要，50-100字' },
+                      source: { type: 'string', description: '来源媒体' },
+                      publishDate: { type: 'string', description: '发布日期，格式YYYY-MM-DD' },
+                      category: { type: 'string', description: '分类，如AI、新能源、生物医药等' },
+                      content: { type: 'string', description: '详细内容，200-500字' },
+                      relatedKeywords: { type: 'array', items: { type: 'string' }, description: '相关关键词' }
+                    },
+                    required: ['id', 'title', 'summary', 'source', 'publishDate', 'category', 'content', 'relatedKeywords']
+                  }
+                }
+              },
+              required: ['news']
+            }
+          }
+        }
+      ];
+      body.tool_choice = { type: 'function', function: { name: 'search_news' } };
     }
 
     console.log('Calling Kimi API...');
