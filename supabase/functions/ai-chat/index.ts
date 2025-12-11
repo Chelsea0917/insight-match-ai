@@ -145,29 +145,30 @@ serve(async (req) => {
       ];
       body.tool_choice = { type: 'function', function: { name: 'analyze_company' } };
     } else if (type === 'search_news') {
-      // 使用tool calling获取结构化新闻数据
+      // 使用tool calling获取结构化新闻数据，限制数量避免截断
       body.tools = [
         {
           type: 'function',
           function: {
             name: 'return_news',
-            description: '返回具体的投资融资新闻，每条新闻必须包含真实的公司名称、融资金额、投资方等具体信息，绝对不能使用占位符',
+            description: '返回3条投资融资新闻',
             parameters: {
               type: 'object',
               properties: {
                 news: {
                   type: 'array',
+                  maxItems: 3,
                   items: {
                     type: 'object',
                     properties: {
-                      id: { type: 'string', description: '唯一ID如news_1' },
-                      title: { type: 'string', description: '具体新闻标题，必须包含真实公司名称和事件，如"智谱AI完成4亿美元B轮融资"' },
-                      summary: { type: 'string', description: '40-60字摘要，概述融资事件核心信息' },
-                      source: { type: 'string', description: '真实媒体来源，如36氪、投资界、钛媒体' },
-                      publishDate: { type: 'string', description: '发布日期YYYY-MM-DD' },
-                      category: { type: 'string', description: '行业分类：AI/新能源/医疗/半导体/企业服务' },
-                      content: { type: 'string', description: '100-150字详细内容，必须包含公司名称、融资金额、投资方、业务介绍、资金用途' },
-                      relatedKeywords: { type: 'array', items: { type: 'string' }, description: '2-3个相关关键词' }
+                      id: { type: 'string' },
+                      title: { type: 'string', description: '标题含公司名如"智谱AI完成B轮融资"' },
+                      summary: { type: 'string', description: '30字摘要' },
+                      source: { type: 'string', description: '36氪/投资界/钛媒体' },
+                      publishDate: { type: 'string' },
+                      category: { type: 'string' },
+                      content: { type: 'string', description: '60-80字内容' },
+                      relatedKeywords: { type: 'array', items: { type: 'string' }, maxItems: 2 }
                     },
                     required: ['id', 'title', 'summary', 'source', 'publishDate', 'category', 'content', 'relatedKeywords']
                   }
