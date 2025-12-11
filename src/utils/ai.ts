@@ -193,6 +193,7 @@ export interface AINewsItem {
   industry?: string;
   fundingAmount?: string;
   investors?: string[];
+  imageUrl?: string;
 }
 
 // Search news with AI - 获取最近一周的完整新闻
