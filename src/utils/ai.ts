@@ -1,6 +1,9 @@
 import { Company, RequirementProfile, MatchedCompany, CompanyAnalysis } from '@/types/company';
 import { supabase } from '@/integrations/supabase/client';
 
+// Import prompts from txt files
+import NEWS_SEARCH_SYSTEM from '@/prompts/news-search.txt?raw';
+
 // Prompt templates for system messages
 const REQUIREMENT_ANALYSIS_SYSTEM = `你是招商助手，请阅读用户的一段招商需求文本，提取出结构化筛选条件。
 请抽取：
@@ -23,8 +26,6 @@ const COMPANY_ANALYSIS_SYSTEM = `你是招商顾问。根据用户需求与公�
 2. 主要风险或不确定性（1-2条）
 3. 适合什么样的园区或载体（写一句话）
 4. 最终建议：推荐 / 谨慎推荐 / 不推荐（并用一句话说明原因）`;
-
-const NEWS_SEARCH_SYSTEM = `你是投资资讯推荐引擎。推荐3条投资融资新闻，必须包含具体公司名称和融资信息。`;
 
 // Call AI API through edge function
 async function callAI(messages: { role: string; content: string }[], type: string): Promise<unknown> {
