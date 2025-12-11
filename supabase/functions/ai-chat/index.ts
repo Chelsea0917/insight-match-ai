@@ -12,10 +12,10 @@ serve(async (req) => {
   }
 
   try {
-    const AI_API_KEY = Deno.env.get('AI_API_KEY');
-    if (!AI_API_KEY) {
-      console.error('AI_API_KEY is not configured');
-      throw new Error('AI_API_KEY is not configured');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      console.error('LOVABLE_API_KEY is not configured');
+      throw new Error('LOVABLE_API_KEY is not configured');
     }
 
     const { messages, type } = await req.json();
@@ -23,7 +23,7 @@ serve(async (req) => {
 
     // Build the request body based on type
     const body: Record<string, unknown> = {
-      model: 'gpt-4o-mini', // 可根据需要调整模型
+      model: 'google/gemini-2.5-flash',
       messages,
     };
 
@@ -130,13 +130,13 @@ serve(async (req) => {
       body.tool_choice = { type: 'function', function: { name: 'analyze_company' } };
     }
 
-    console.log('Calling AI API...');
+    console.log('Calling Lovable AI Gateway...');
     
-    // 调用 OpenAI 兼容的 API
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // 调用 Lovable AI Gateway
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${AI_API_KEY}`,
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
@@ -144,12 +144,33 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI API error:', response.status, errorText);
-      throw new Error(`AI API error: ${response.status} - ${errorText}`);
+      console.error('Lovable AI Gateway error:', response.status, errorText);
+      
+      if (response.status === 429) {
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: '请求过于频繁，请稍后再试' 
+        }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: '额度已用完，请充值' 
+        }), {
+          status: 402,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      throw new Error(`AI Gateway error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('AI API response received');
+    console.log('Lovable AI Gateway response received');
 
     // Extract tool call result if applicable
     let result;
