@@ -25,9 +25,9 @@ const COMPANY_ANALYSIS_SYSTEM = `你是招商顾问。根据用户需求与公�
 4. 最终建议：推荐 / 谨慎推荐 / 不推荐（并用一句话说明原因）`;
 
 const NEWS_SEARCH_SYSTEM = `你是投资资讯搜索引擎，请生成最近一周的投资、创业、融资相关资讯。
-生成10-15条资讯，涵盖：AI、新能源、生物医药、半导体、智能制造、企业服务等热门赛道。
-每条资讯需要：标题、摘要（50-100字）、来源媒体、发布日期（最近7天内）、分类、详细内容（200-500字）、相关关键词。
-资讯应该真实可信，反映当前投资市场热点。`;
+生成5-8条资讯，涵盖热门赛道。
+每条资讯需要：标题、摘要（30-50字）、来源、发布日期（YYYY-MM-DD）、分类、内容（80-150字）、关键词（2-3个）。
+保持简洁。`;
 
 // Call AI API through edge function
 async function callAI(messages: { role: string; content: string }[], type: string): Promise<unknown> {
@@ -203,7 +203,7 @@ export async function searchNewsWithAI(): Promise<AINewsItem[]> {
       { role: 'system', content: NEWS_SEARCH_SYSTEM },
       { 
         role: 'user', 
-        content: `请生成最近一周（${weekAgo.toISOString().split('T')[0]} 至 ${today.toISOString().split('T')[0]}）的投资创业资讯，10-15条。`
+        content: `请生成最近一周（${weekAgo.toISOString().split('T')[0]} 至 ${today.toISOString().split('T')[0]}）的投资资讯，5-8条。`
       }
     ];
     

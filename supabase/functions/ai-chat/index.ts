@@ -151,7 +151,7 @@ serve(async (req) => {
           type: 'function',
           function: {
             name: 'search_news',
-            description: '搜索最近一周的投资、创业、融资相关资讯新闻',
+            description: '搜索最近一周的投资资讯，返回5-8条',
             parameters: {
               type: 'object',
               properties: {
@@ -160,14 +160,14 @@ serve(async (req) => {
                   items: {
                     type: 'object',
                     properties: {
-                      id: { type: 'string', description: '资讯唯一ID' },
-                      title: { type: 'string', description: '资讯标题' },
-                      summary: { type: 'string', description: '资讯摘要，50-100字' },
-                      source: { type: 'string', description: '来源媒体' },
-                      publishDate: { type: 'string', description: '发布日期，格式YYYY-MM-DD' },
-                      category: { type: 'string', description: '分类，如AI、新能源、生物医药等' },
-                      content: { type: 'string', description: '详细内容，200-500字' },
-                      relatedKeywords: { type: 'array', items: { type: 'string' }, description: '相关关键词' }
+                      id: { type: 'string', description: '资讯ID' },
+                      title: { type: 'string', description: '标题' },
+                      summary: { type: 'string', description: '摘要30-50字' },
+                      source: { type: 'string', description: '来源' },
+                      publishDate: { type: 'string', description: '日期YYYY-MM-DD' },
+                      category: { type: 'string', description: '分类' },
+                      content: { type: 'string', description: '内容80-150字' },
+                      relatedKeywords: { type: 'array', items: { type: 'string' }, description: '2-3个关键词' }
                     },
                     required: ['id', 'title', 'summary', 'source', 'publishDate', 'category', 'content', 'relatedKeywords']
                   }
@@ -227,7 +227,34 @@ serve(async (req) => {
     let result;
     if (data.choices?.[0]?.message?.tool_calls?.length > 0) {
       const toolCall = data.choices[0].message.tool_calls[0];
-      result = JSON.parse(toolCall.function.arguments);
+      try {
+        result = JSON.parse(toolCall.function.arguments);
+      } catch (parseError) {
+        console.error('Failed to parse tool call arguments:', toolCall.function.arguments?.slice(0, 500));
+        // Try to fix truncated JSON by finding last complete object
+        const args = toolCall.function.arguments || '';
+        // For news array, try to extract valid items
+        if (type === 'search_news' && args.includes('"news"')) {
+          const newsMatch = args.match(/"news"\s*:\s*\[/);
+          if (newsMatch) {
+            // Find all complete news objects
+            const items: unknown[] = [];
+            const regex = /\{[^{}]*"id"\s*:\s*"[^"]*"[^{}]*"title"\s*:\s*"[^"]*"[^{}]*\}/g;
+            let match;
+            while ((match = regex.exec(args)) !== null) {
+              try {
+                items.push(JSON.parse(match[0]));
+              } catch { /* skip invalid item */ }
+            }
+            if (items.length > 0) {
+              result = { news: items };
+            }
+          }
+        }
+        if (!result) {
+          throw new Error('AI返回的数据格式异常，请重试');
+        }
+      }
     } else {
       result = {
         content: data.choices?.[0]?.message?.content || ''
