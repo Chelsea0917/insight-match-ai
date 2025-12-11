@@ -73,35 +73,51 @@ serve(async (req) => {
         }
       ];
       body.tool_choice = { type: 'function', function: { name: 'parse_requirement' } };
-    } else if (type === 'match_companies') {
+    } else if (type === 'search_companies') {
+      // 实时搜索/生成公司，不依赖本地数据
       body.tools = [
         {
           type: 'function',
           function: {
-            name: 'match_companies',
-            description: '根据用户需求匹配公司并返回匹配分数和原因',
+            name: 'search_companies',
+            description: '根据用户需求实时搜索/生成符合条件的公司列表，包含完整公司信息和匹配分数',
             parameters: {
               type: 'object',
               properties: {
-                matches: {
+                companies: {
                   type: 'array',
                   items: {
                     type: 'object',
                     properties: {
-                      company_id: { type: 'string' },
-                      score: { type: 'number', description: '匹配分数 0-100' },
-                      reason: { type: 'string', description: '匹配原因' }
+                      id: { type: 'string', description: '公司唯一ID，如comp_001' },
+                      name: { type: 'string', description: '公司名称' },
+                      city: { type: 'string', description: '所在城市' },
+                      province: { type: 'string', description: '所在省份' },
+                      industry: { type: 'array', items: { type: 'string' }, description: '所属行业' },
+                      track: { type: 'string', description: '细分赛道' },
+                      register_year: { type: 'number', description: '成立年份' },
+                      last_round: { type: 'string', description: '最近融资轮次' },
+                      last_round_date: { type: 'string', description: '最近融资日期，格式YYYY-MM-DD' },
+                      last_round_amount: { type: 'string', description: '融资金额' },
+                      investors: { type: 'array', items: { type: 'string' }, description: '投资方列表' },
+                      headline: { type: 'string', description: '公司一句话简介' },
+                      business_summary: { type: 'string', description: '业务概述' },
+                      news_snippet: { type: 'string', description: '最新动态' },
+                      growth_stage: { type: 'string', description: '增长阶段：早期/快速增长/成熟期' },
+                      tags: { type: 'array', items: { type: 'string' }, description: '标签' },
+                      match_score: { type: 'number', description: '匹配分数0-100' },
+                      match_reason: { type: 'string', description: '匹配原因' }
                     },
-                    required: ['company_id', 'score', 'reason']
+                    required: ['id', 'name', 'city', 'province', 'industry', 'track', 'last_round', 'business_summary', 'match_score', 'match_reason']
                   }
                 }
               },
-              required: ['matches']
+              required: ['companies']
             }
           }
         }
       ];
-      body.tool_choice = { type: 'function', function: { name: 'match_companies' } };
+      body.tool_choice = { type: 'function', function: { name: 'search_companies' } };
     } else if (type === 'analyze_company') {
       body.tools = [
         {

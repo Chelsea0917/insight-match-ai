@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RequirementProfile, MatchedCompany } from '@/types/company';
-import { companies as companyData } from '@/data/companies';
-import { analyzeRequirementWithAI, matchCompaniesWithAI } from '@/utils/ai';
+import { analyzeRequirementWithAI, searchCompaniesWithAI } from '@/utils/ai';
 import { RequirementInput } from '@/components/RequirementInput';
 import { NewsList } from '@/components/NewsList';
 import { Sparkles, Building2 } from 'lucide-react';
@@ -20,8 +19,8 @@ const Index = () => {
       // Step 1: Analyze requirement
       const profile = await analyzeRequirementWithAI(requirement);
 
-      // Step 2: Match companies
-      const matched = await matchCompaniesWithAI(profile, companyData);
+      // Step 2: Search companies with AI (real-time generation)
+      const matched = await searchCompaniesWithAI(profile);
       const topMatches = matched.slice(0, 10);
 
       toast({
@@ -107,7 +106,7 @@ const Index = () => {
       <footer className="border-t border-border">
         <div className="container mx-auto px-4 py-4">
           <p className="text-center text-sm text-muted-foreground">
-            招商智能匹配 Agent Demo · 基于本地 Mock 数据演示
+            招商智能匹配 Agent · AI 实时搜索
           </p>
         </div>
       </footer>
