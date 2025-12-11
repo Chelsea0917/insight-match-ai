@@ -151,7 +151,7 @@ serve(async (req) => {
           type: 'function',
           function: {
             name: 'return_news',
-            description: '返回投资融资相关新闻列表',
+            description: '返回具体的投资融资新闻，每条新闻必须包含真实的公司名称、融资金额、投资方等具体信息，绝对不能使用占位符',
             parameters: {
               type: 'object',
               properties: {
@@ -160,14 +160,14 @@ serve(async (req) => {
                   items: {
                     type: 'object',
                     properties: {
-                      id: { type: 'string' },
-                      title: { type: 'string', description: '新闻标题' },
-                      summary: { type: 'string', description: '40-60字摘要' },
-                      source: { type: 'string', description: '来源媒体' },
-                      publishDate: { type: 'string', description: '日期YYYY-MM-DD' },
-                      category: { type: 'string', description: '分类' },
-                      content: { type: 'string', description: '100-150字内容' },
-                      relatedKeywords: { type: 'array', items: { type: 'string' } }
+                      id: { type: 'string', description: '唯一ID如news_1' },
+                      title: { type: 'string', description: '具体新闻标题，必须包含真实公司名称和事件，如"智谱AI完成4亿美元B轮融资"' },
+                      summary: { type: 'string', description: '40-60字摘要，概述融资事件核心信息' },
+                      source: { type: 'string', description: '真实媒体来源，如36氪、投资界、钛媒体' },
+                      publishDate: { type: 'string', description: '发布日期YYYY-MM-DD' },
+                      category: { type: 'string', description: '行业分类：AI/新能源/医疗/半导体/企业服务' },
+                      content: { type: 'string', description: '100-150字详细内容，必须包含公司名称、融资金额、投资方、业务介绍、资金用途' },
+                      relatedKeywords: { type: 'array', items: { type: 'string' }, description: '2-3个相关关键词' }
                     },
                     required: ['id', 'title', 'summary', 'source', 'publishDate', 'category', 'content', 'relatedKeywords']
                   }

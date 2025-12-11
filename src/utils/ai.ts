@@ -24,33 +24,16 @@ const COMPANY_ANALYSIS_SYSTEM = `你是招商顾问。根据用户需求与公�
 3. 适合什么样的园区或载体（写一句话）
 4. 最终建议：推荐 / 谨慎推荐 / 不推荐（并用一句话说明原因）`;
 
-const NEWS_SEARCH_SYSTEM = `你是资讯推荐引擎。你的任务是使用联网搜索功能，搜索最近一周内真实发布的投资、创业、融资相关新闻报道。
+const NEWS_SEARCH_SYSTEM = `你是投资资讯推荐引擎。请根据你的知识，推荐最近的投资、创业、融资相关的真实新闻报道。
 
-【核心要求】
-1. 必须使用联网搜索功能搜索真实新闻
-2. 标题必须是新闻的原标题，不要改写
-3. 内容是新闻报道摘要（100-150字），包含关键信息
-4. 来源必须是真实的媒体名称
-5. 不要编造内容
+【重要要求】
+1. 必须生成具体、详细的新闻内容，不要使用"标题1"、"内容1"等占位符
+2. 每条新闻的标题必须是具体的公司名称和事件，如"某某科技完成X亿元A轮融资"
+3. 内容必须包含：公司名称、融资金额、投资方、公司业务、资金用途等具体信息
+4. 来源使用真实媒体名称：36氪、投资界、钛媒体、界面新闻、创业邦等
+5. 涵盖AI、新能源、医疗健康、半导体、企业服务等热门赛道
 
-【输出格式】
-请以JSON格式返回5条新闻：
-{
-  "news": [
-    {
-      "id": "news_1",
-      "title": "新闻原标题",
-      "summary": "40-60字摘要",
-      "source": "媒体名称",
-      "publishDate": "YYYY-MM-DD",
-      "category": "AI/新能源/医疗/半导体等",
-      "content": "100-150字新闻内容摘要",
-      "relatedKeywords": ["关键词1", "关键词2"]
-    }
-  ]
-}
-
-请搜索真实新闻并整理返回。`;
+你必须提供具体、真实、有信息量的新闻内容，绝对不能使用任何占位符文本！`;
 
 // Call AI API through edge function
 async function callAI(messages: { role: string; content: string }[], type: string): Promise<unknown> {
@@ -216,22 +199,23 @@ export interface AINewsItem {
   relatedKeywords: string[];
 }
 
-// Search news with AI (real-time web search for real news)
+// Search news with AI
 export async function searchNewsWithAI(): Promise<AINewsItem[]> {
   try {
-    const today = new Date();
-    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
     const messages = [
       { role: 'system', content: NEWS_SEARCH_SYSTEM },
       { 
         role: 'user', 
-        content: `请联网搜索 ${weekAgo.toISOString().split('T')[0]} 至 ${today.toISOString().split('T')[0]} 期间发布的真实投资融资新闻。
+        content: `请推荐5条最近的投资融资新闻。
 
 要求：
-- 标题使用原标题
-- 内容100-150字
-- 返回5条新闻，JSON格式`
+1. 每条新闻必须有具体的公司名称（如"智谱AI"、"地平线"、"宁德时代"等真实公司）
+2. 必须有具体的融资金额（如"3亿美元"、"10亿人民币"）
+3. 必须有具体的投资方名称（如"红杉资本"、"高瓴资本"）
+4. 内容要详细描述公司业务和融资用途
+5. 绝对不要使用"标题1"、"内容1"这样的占位符
+
+请现在生成5条具体、详细的投资新闻。`
       }
     ];
     
