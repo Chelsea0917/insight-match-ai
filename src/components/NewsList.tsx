@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { NewsListItem } from './NewsListItem';
 import { Newspaper, Loader2 } from 'lucide-react';
-import { searchNewsWithAI, AINewsItem } from '@/utils/ai';
 import { toast } from 'sonner';
 import { fallbackNews } from '@/data/fallbackNews';
+import { supabase } from '@/integrations/supabase/client';
 
-// Map AI news to display format
+// Map database news to display format
 interface DisplayNewsItem {
   id: string;
   title: string;
@@ -18,11 +18,7 @@ interface DisplayNewsItem {
   relatedKeywords: string[];
 }
 
-// 缓存相关常量
-const NEWS_CACHE_KEY = 'daily_news_cache';
-const NEWS_CACHE_DATE_KEY = 'daily_news_date';
-
-// 获取今天的日期字符串（用于缓存判断）
+// 获取今天的日期字符串
 function getTodayString(): string {
   return new Date().toISOString().split('T')[0];
 }
@@ -40,29 +36,6 @@ function convertFallbackToDisplay(): DisplayNewsItem[] {
     content: item.content,
     relatedKeywords: [item.industry, item.category]
   }));
-}
-
-// 从localStorage读取缓存的新闻（不管日期，先返回数据）
-function getCachedNews(): { news: DisplayNewsItem[] | null; isStale: boolean } {
-  try {
-    const cached = localStorage.getItem(NEWS_CACHE_KEY);
-    const cachedDate = localStorage.getItem(NEWS_CACHE_DATE_KEY);
-    const news = cached ? JSON.parse(cached) : null;
-    const isStale = cachedDate !== getTodayString();
-    return { news, isStale };
-  } catch {
-    return { news: null, isStale: true };
-  }
-}
-
-// 保存新闻到localStorage
-function setCachedNews(news: DisplayNewsItem[]): void {
-  try {
-    localStorage.setItem(NEWS_CACHE_KEY, JSON.stringify(news));
-    localStorage.setItem(NEWS_CACHE_DATE_KEY, getTodayString());
-  } catch (error) {
-    console.error('Failed to cache news:', error);
-  }
 }
 
 // 根据分类和行业生成图片
@@ -90,66 +63,97 @@ function getCategoryThumbnail(category: string, industry?: string): string {
     '新能源汽车': 'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=200&h=150&fit=crop',
   };
   
-  // 优先匹配行业，再匹配分类
   if (industry && thumbnails[industry]) {
     return thumbnails[industry];
   }
   return thumbnails[category] || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=200&h=150&fit=crop';
 }
 
+// 将数据库记录转换为显示格式
+function convertDbToDisplay(dbNews: Array<{
+  id: string;
+  title: string;
+  company: string | null;
+  industry: string | null;
+  category: string | null;
+  amount: string | null;
+  investors: string | null;
+  publish_date: string | null;
+  content: string | null;
+  thumbnail: string | null;
+}>): DisplayNewsItem[] {
+  return dbNews.map(item => ({
+    id: item.id,
+    title: item.title,
+    summary: `${item.company || ''} · ${item.industry || ''} · ${item.amount || ''}`,
+    thumbnail: getCategoryThumbnail(item.category || '', item.industry || ''),
+    source: item.investors || '',
+    publishDate: item.publish_date || getTodayString(),
+    category: item.category || '融资',
+    content: item.content || '',
+    relatedKeywords: [item.industry || '', item.category || ''].filter(Boolean)
+  }));
+}
+
 export const NewsList = () => {
   const [news, setNews] = useState<DisplayNewsItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchNews = async (forceRefresh = false) => {
-    // 先立即显示缓存的新闻（即使是旧的）
-    const { news: cachedNews, isStale } = getCachedNews();
+  const fetchNews = async () => {
+    const today = getTodayString();
     
-    if (cachedNews && cachedNews.length > 0) {
-      setNews(cachedNews);
-      setIsLoading(false);
-      
-      // 如果不强制刷新且缓存是今天的，直接返回
-      if (!forceRefresh && !isStale) {
-        console.log('Using fresh cached news from today');
+    try {
+      // 1. 先从数据库获取今天的新闻
+      const { data: dbNews, error } = await supabase
+        .from('daily_news')
+        .select('*')
+        .eq('news_date', today)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Failed to fetch news from database:', error);
+        throw error;
+      }
+
+      // 2. 如果数据库有今天的新闻，直接显示
+      if (dbNews && dbNews.length > 0) {
+        console.log(`Found ${dbNews.length} news items from database for today`);
+        setNews(convertDbToDisplay(dbNews));
+        setIsLoading(false);
         return;
       }
-      
-      // 缓存是旧的，后台静默更新
-      console.log('Showing stale cache, fetching fresh news in background');
-    } else {
-      // 没有任何缓存，先显示fallback数据
-      console.log('No cache found, showing fallback news');
+
+      // 3. 数据库没有今天的新闻，先显示fallback，然后触发edge function获取
+      console.log('No news in database for today, showing fallback and triggering fetch...');
       setNews(convertFallbackToDisplay());
       setIsLoading(false);
-    }
 
-    try {
-      const aiNews = await searchNewsWithAI();
+      // 4. 触发fetch-daily-news edge function
+      const { error: fetchError } = await supabase.functions.invoke('fetch-daily-news');
       
-      // 转换为显示格式，直接使用分类默认图片（AI返回的图片URL不可用）
-      const displayNews: DisplayNewsItem[] = aiNews.map((item: AINewsItem) => ({
-        ...item,
-        thumbnail: getCategoryThumbnail(item.category, item.industry)
-      }));
+      if (fetchError) {
+        console.error('Failed to trigger fetch-daily-news:', fetchError);
+        toast.error('获取最新资讯失败');
+        return;
+      }
+
+      // 5. 等待一小段时间后重新从数据库获取
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
-      // 按时间排序：从最近到最远
-      displayNews.sort((a, b) => {
-        const dateA = new Date(a.publishDate).getTime();
-        const dateB = new Date(b.publishDate).getTime();
-        return dateB - dateA;
-      });
-      
-      // 保存到缓存
-      setCachedNews(displayNews);
-      setNews(displayNews);
+      const { data: newDbNews, error: refetchError } = await supabase
+        .from('daily_news')
+        .select('*')
+        .eq('news_date', today)
+        .order('created_at', { ascending: false });
+
+      if (!refetchError && newDbNews && newDbNews.length > 0) {
+        console.log(`Fetched ${newDbNews.length} new news items from database`);
+        setNews(convertDbToDisplay(newDbNews));
+        toast.success('资讯已更新');
+      }
     } catch (error) {
       console.error('Failed to fetch news:', error);
-      // 如果获取失败但有缓存，保持显示缓存内容
-      if (!cachedNews || cachedNews.length === 0) {
-        toast.error('获取资讯失败，请稍后重试');
-      }
-    } finally {
+      setNews(convertFallbackToDisplay());
       setIsLoading(false);
     }
   };
