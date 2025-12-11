@@ -196,7 +196,7 @@ export interface AINewsItem {
   imageUrl?: string;
 }
 
-// Search news with AI - 获取最近一周的完整新闻
+// Search news with AI - 获取最近一周的完整新闻（20条，每日缓存）
 export async function searchNewsWithAI(): Promise<AINewsItem[]> {
   // 计算最近一周的日期范围
   const today = new Date();
@@ -204,12 +204,16 @@ export async function searchNewsWithAI(): Promise<AINewsItem[]> {
   const dateRange = `${oneWeekAgo.toISOString().split('T')[0]} 到 ${today.toISOString().split('T')[0]}`;
   
   try {
-    const messages = [
-      { role: 'system', content: NEWS_SEARCH_SYSTEM },
-      { 
-        role: 'user', 
-        content: `推荐5条最近一周（${dateRange}）的投资融资或行业重要新闻，要求：
-1. 标题必须包含具体公司名（如智谱AI、月之暗面、地平线、宁德时代等）或具体行业事件
+    // 分批请求，每次10条，共2次
+    const allNews: AINewsItem[] = [];
+    
+    for (let batch = 0; batch < 2; batch++) {
+      const messages = [
+        { role: 'system', content: NEWS_SEARCH_SYSTEM },
+        { 
+          role: 'user', 
+          content: `推荐10条最近一周（${dateRange}）的投资融资或行业重要新闻（第${batch + 1}批），要求：
+1. 标题必须包含具体公司名（如智谱AI、月之暗面、地平线、宁德时代、百川智能、零一万物等）或具体行业事件
 2. 内容要完整详实，150-200字，包含：
    - 融资金额、估值（如有）
    - 投资方/领投方名单
@@ -218,16 +222,27 @@ export async function searchNewsWithAI(): Promise<AINewsItem[]> {
 3. 日期必须是最近7天内的真实日期
 4. 来源要真实可信（36氪、投资界、钛媒体、界面新闻等）
 5. 类型可包括：融资、并购、IPO、政策、行业动态
+6. 不要与第${batch === 0 ? '二' : '一'}批内容重复
 
 请返回完整、真实的新闻信息，不要用占位符！`
+        }
+      ];
+      
+      const result = await callAI(messages, 'search_news') as { 
+        news: AINewsItem[]
+      };
+      
+      if (result.news && result.news.length > 0) {
+        // 为每条新闻添加唯一ID前缀避免重复
+        const batchNews = result.news.map((item, index) => ({
+          ...item,
+          id: `batch${batch}_${item.id || index}`
+        }));
+        allNews.push(...batchNews);
       }
-    ];
+    }
     
-    const result = await callAI(messages, 'search_news') as { 
-      news: AINewsItem[]
-    };
-    
-    return result.news || [];
+    return allNews;
   } catch (error) {
     console.error('AI news search failed:', error);
     throw error;

@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NewsListItem } from './NewsListItem';
-import { Newspaper, RefreshCw, Loader2 } from 'lucide-react';
+import { Newspaper, Loader2 } from 'lucide-react';
 import { searchNewsWithAI, AINewsItem } from '@/utils/ai';
-import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 // Map AI news to display format
@@ -18,8 +17,41 @@ interface DisplayNewsItem {
   relatedKeywords: string[];
 }
 
-// Generate fallback thumbnail based on category
-function getCategoryThumbnail(category: string): string {
+// 缓存相关常量
+const NEWS_CACHE_KEY = 'daily_news_cache';
+const NEWS_CACHE_DATE_KEY = 'daily_news_date';
+
+// 获取今天的日期字符串（用于缓存判断）
+function getTodayString(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+// 从localStorage读取缓存的新闻
+function getCachedNews(): DisplayNewsItem[] | null {
+  try {
+    const cachedDate = localStorage.getItem(NEWS_CACHE_DATE_KEY);
+    if (cachedDate !== getTodayString()) {
+      return null; // 不是今天的缓存，返回null
+    }
+    const cached = localStorage.getItem(NEWS_CACHE_KEY);
+    return cached ? JSON.parse(cached) : null;
+  } catch {
+    return null;
+  }
+}
+
+// 保存新闻到localStorage
+function setCachedNews(news: DisplayNewsItem[]): void {
+  try {
+    localStorage.setItem(NEWS_CACHE_KEY, JSON.stringify(news));
+    localStorage.setItem(NEWS_CACHE_DATE_KEY, getTodayString());
+  } catch (error) {
+    console.error('Failed to cache news:', error);
+  }
+}
+
+// 根据分类和行业生成图片
+function getCategoryThumbnail(category: string, industry?: string): string {
   const thumbnails: Record<string, string> = {
     'AI': 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=200&h=150&fit=crop',
     '人工智能': 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=200&h=150&fit=crop',
@@ -37,30 +69,43 @@ function getCategoryThumbnail(category: string): string {
     '融资': 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=200&h=150&fit=crop',
     '并购': 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=200&h=150&fit=crop',
     'IPO': 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=200&h=150&fit=crop',
+    '政策': 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=200&h=150&fit=crop',
+    '行业动态': 'https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?w=200&h=150&fit=crop',
+    '自动驾驶': 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=200&h=150&fit=crop',
+    '新能源汽车': 'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=200&h=150&fit=crop',
   };
   
+  // 优先匹配行业，再匹配分类
+  if (industry && thumbnails[industry]) {
+    return thumbnails[industry];
+  }
   return thumbnails[category] || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=200&h=150&fit=crop';
 }
 
 export const NewsList = () => {
   const [news, setNews] = useState<DisplayNewsItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const fetchNews = async (showRefreshToast = false) => {
+  const fetchNews = async () => {
+    // 先检查缓存
+    const cachedNews = getCachedNews();
+    if (cachedNews && cachedNews.length > 0) {
+      console.log('Using cached news from today');
+      setNews(cachedNews);
+      setIsLoading(false);
+      return;
+    }
+
+    // 没有缓存，从API获取
     try {
-      if (showRefreshToast) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
+      setIsLoading(true);
       
       const aiNews = await searchNewsWithAI();
       
-      // 转换为显示格式，优先使用AI返回的图片，否则使用分类默认图
+      // 转换为显示格式，直接使用分类默认图片（AI返回的图片URL不可用）
       const displayNews: DisplayNewsItem[] = aiNews.map((item: AINewsItem) => ({
         ...item,
-        thumbnail: item.imageUrl || getCategoryThumbnail(item.category)
+        thumbnail: getCategoryThumbnail(item.category, item.industry)
       }));
       
       // 按时间排序：从最近到最远
@@ -70,27 +115,20 @@ export const NewsList = () => {
         return dateB - dateA;
       });
       
+      // 保存到缓存
+      setCachedNews(displayNews);
       setNews(displayNews);
-      
-      if (showRefreshToast) {
-        toast.success('资讯已更新');
-      }
     } catch (error) {
       console.error('Failed to fetch news:', error);
       toast.error('获取资讯失败，请稍后重试');
     } finally {
       setIsLoading(false);
-      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
     fetchNews();
   }, []);
-
-  const handleRefresh = () => {
-    fetchNews(true);
-  };
 
   return (
     <div className="bg-card rounded-xl border border-border">
@@ -99,18 +137,8 @@ export const NewsList = () => {
         <div className="flex items-center gap-2">
           <Newspaper className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold text-foreground">推荐资讯</h2>
-          <span className="text-xs text-muted-foreground ml-2">AI 实时搜索 · 每日更新</span>
+          <span className="text-xs text-muted-foreground ml-2">每日更新 · {news.length} 条</span>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isRefreshing || isLoading}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
-          刷新
-        </Button>
       </div>
 
       {/* News list */}
