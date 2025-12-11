@@ -11,19 +11,29 @@ const TUZI_API_KEY = Deno.env.get('TUZI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-const NEWS_PROMPT = `你是投资资讯推荐引擎，专注于中国创投市场的最新动态。
+// 动态生成带当前日期的prompt
+function getNewsPrompt(): string {
+  const now = new Date();
+  const currentDate = now.toISOString().split('T')[0];
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  
+  return `你是投资资讯推荐引擎，专注于中国创投市场的最新动态。
 
-你的任务是推荐最近一周内的投资融资或行业重要新闻，按发布时间从最近到最远排序。
+当前日期是：${currentDate}（${year}年${month}月）
+
+你的任务是推荐${year}年${month}月最近一周内真实发生的投资融资或行业重要新闻。
 
 要求：
-1. 新闻必须真实可信，来源于权威媒体（36氪、投资界、钛媒体、界面新闻、澎湃科技等）
-2. 标题必须包含具体公司名称或具体行业事件
-3. 内容要完整详实（60-80字），包含融资金额、投资方、公司业务简介
-4. 日期必须是最近7天内，按时间从最近到最远排序
+1. 新闻必须是${year}年${month}月真实发生的事件，日期必须在${currentDate}之前的7天内
+2. 新闻必须真实可信，来源于权威媒体（36氪、投资界、钛媒体、界面新闻、澎湃科技等）
+3. 标题必须包含具体公司名称或具体行业事件
+4. 内容要完整详实（60-80字），包含融资金额、投资方、公司业务简介
 5. 类型可包括：融资、并购、IPO、政策、行业动态
-6. 返回10条不同的新闻
+6. 返回10条不同的新闻，按发布时间从最近到最远排序
 
-请返回完整、真实的新闻信息，不要使用任何占位符或虚构内容。`;
+重要：所有新闻的publishDate必须是${year}年${month}月的日期，不要返回2023年或2024年的旧闻！`;
+}
 
 interface NewsItem {
   title: string;
@@ -76,7 +86,7 @@ async function fetchNewsFromAI(): Promise<NewsItem[]> {
       body: JSON.stringify({
         model: 'deepseek-chat',
         messages: [
-          { role: 'system', content: NEWS_PROMPT },
+          { role: 'system', content: getNewsPrompt() },
           { role: 'user', content: batch === 0 
             ? '请推荐最近一周的10条投资融资新闻。' 
             : '请推荐另外10条不同的投资融资新闻，不要与之前的重复。' 
