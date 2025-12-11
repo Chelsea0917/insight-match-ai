@@ -145,30 +145,34 @@ serve(async (req) => {
       ];
       body.tool_choice = { type: 'function', function: { name: 'analyze_company' } };
     } else if (type === 'search_news') {
-      // 使用tool calling获取结构化新闻数据
+      // 使用tool calling获取结构化新闻数据 - 最近一周的完整新闻
       body.tools = [
         {
           type: 'function',
           function: {
             name: 'return_news',
-            description: '返回3条投资融资新闻',
+            description: '返回最近一周内的5条投资融资或行业重要新闻，要求内容完整详实',
             parameters: {
               type: 'object',
               properties: {
                 news: {
                   type: 'array',
-                  maxItems: 3,
+                  maxItems: 5,
                   items: {
                     type: 'object',
                     properties: {
-                      id: { type: 'string' },
-                      title: { type: 'string', description: '标题含公司名如"智谱AI完成B轮融资"' },
-                      summary: { type: 'string', description: '30字摘要' },
-                      source: { type: 'string', description: '36氪/投资界/钛媒体' },
-                      publishDate: { type: 'string' },
-                      category: { type: 'string' },
-                      content: { type: 'string', description: '60-80字内容' },
-                      relatedKeywords: { type: 'array', items: { type: 'string' }, maxItems: 2 }
+                      id: { type: 'string', description: '新闻唯一ID' },
+                      title: { type: 'string', description: '新闻标题，必须包含具体公司名或行业关键词' },
+                      summary: { type: 'string', description: '50字以内的核心摘要' },
+                      source: { type: 'string', description: '来源媒体：36氪/投资界/钛媒体/界面新闻/澎湃科技等' },
+                      publishDate: { type: 'string', description: '发布日期，格式YYYY-MM-DD，必须是最近7天内' },
+                      category: { type: 'string', description: '分类：融资/并购/IPO/政策/行业动态' },
+                      content: { type: 'string', description: '150-200字完整新闻内容，包含具体数据、投资方、业务详情等' },
+                      relatedKeywords: { type: 'array', items: { type: 'string' }, maxItems: 4, description: '相关关键词' },
+                      companyName: { type: 'string', description: '涉及的主要公司名称' },
+                      industry: { type: 'string', description: '所属行业' },
+                      fundingAmount: { type: 'string', description: '融资金额（如有）' },
+                      investors: { type: 'array', items: { type: 'string' }, description: '投资方列表（如有）' }
                     },
                     required: ['id', 'title', 'summary', 'source', 'publishDate', 'category', 'content', 'relatedKeywords']
                   }
