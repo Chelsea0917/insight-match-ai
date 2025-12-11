@@ -3,6 +3,7 @@ import { NewsListItem } from './NewsListItem';
 import { Newspaper, Loader2 } from 'lucide-react';
 import { searchNewsWithAI, AINewsItem } from '@/utils/ai';
 import { toast } from 'sonner';
+import { fallbackNews } from '@/data/fallbackNews';
 
 // Map AI news to display format
 interface DisplayNewsItem {
@@ -24,6 +25,21 @@ const NEWS_CACHE_DATE_KEY = 'daily_news_date';
 // 获取今天的日期字符串（用于缓存判断）
 function getTodayString(): string {
   return new Date().toISOString().split('T')[0];
+}
+
+// 将fallback数据转换为显示格式
+function convertFallbackToDisplay(): DisplayNewsItem[] {
+  return fallbackNews.map(item => ({
+    id: item.id,
+    title: item.title,
+    summary: `${item.company} · ${item.industry} · ${item.amount}`,
+    thumbnail: item.thumbnail,
+    source: item.investors,
+    publishDate: item.publishDate,
+    category: item.category,
+    content: item.content,
+    relatedKeywords: [item.industry, item.category]
+  }));
 }
 
 // 从localStorage读取缓存的新闻（不管日期，先返回数据）
@@ -101,11 +117,11 @@ export const NewsList = () => {
       
       // 缓存是旧的，后台静默更新
       console.log('Showing stale cache, fetching fresh news in background');
-    }
-
-    // 没有缓存或缓存过期，需要加载
-    if (!cachedNews || cachedNews.length === 0) {
-      setIsLoading(true);
+    } else {
+      // 没有任何缓存，先显示fallback数据
+      console.log('No cache found, showing fallback news');
+      setNews(convertFallbackToDisplay());
+      setIsLoading(false);
     }
 
     try {
