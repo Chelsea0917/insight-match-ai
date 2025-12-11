@@ -11,12 +11,11 @@ const REQUIREMENT_ANALYSIS_SYSTEM = `你是招商助手，请阅读用户的一�
 - extra_preferences：其它偏好（如是否有头部基金、是否已商业化、是否团队在扩张等）
 - scenario：适配场景（如：产业园、总部办公、实验室、制造工厂等的推理）`;
 
-const COMPANY_MATCHING_SYSTEM = `你是招商匹配引擎，请根据"用户需求画像"和"候选企业列表"，为每家企业打一个0-100的匹配分数，并给出一行中文理由。
-评分标准：
-- 地域匹配：30分
-- 行业匹配：30分
-- 融资阶段匹配：20分
-- 其他偏好匹配：20分`;
+const COMPANY_SEARCH_SYSTEM = `你是招商搜索引擎，请根据"用户需求画像"实时生成5-10家符合条件的公司。
+这些公司应该是真实存在或高度拟真的企业，包含完整信息。
+每家公司需要：完整的公司名称、城市、省份、行业、赛道、融资信息、投资方、业务概述等。
+同时为每家公司给出0-100的匹配分数和匹配理由。
+按匹配分数从高到低排序。`;
 
 const COMPANY_ANALYSIS_SYSTEM = `你是招商顾问。根据用户需求与公司信息，用简短中文给出招商视角的分析。
 请分析：
@@ -68,53 +67,71 @@ export async function analyzeRequirementWithAI(requirementText: string): Promise
   }
 }
 
-// Match companies with AI
-export async function matchCompaniesWithAI(
-  requirementProfile: RequirementProfile,
-  companies: Company[]
+// Search companies with AI (real-time generation)
+export async function searchCompaniesWithAI(
+  requirementProfile: RequirementProfile
 ): Promise<MatchedCompany[]> {
-  // First, pre-filter companies based on basic criteria
-  const candidateCompanies = preFilterCompanies(requirementProfile, companies);
-  
   try {
     const messages = [
-      { role: 'system', content: COMPANY_MATCHING_SYSTEM },
+      { role: 'system', content: COMPANY_SEARCH_SYSTEM },
       { 
         role: 'user', 
         content: `【用户需求画像】：
 ${JSON.stringify(requirementProfile, null, 2)}
 
-【候选企业列表】：
-${JSON.stringify(candidateCompanies.map(c => ({
-  id: c.id,
-  name: c.name,
-  city: c.city,
-  province: c.province,
-  industry: c.industry,
-  track: c.track,
-  last_round: c.last_round,
-  last_round_date: c.last_round_date,
-  investors: c.investors,
-  business_summary: c.business_summary,
-  growth_stage: c.growth_stage,
-  tags: c.tags
-})), null, 2)}
-
-请为每家企业打分并说明理由。`
+请根据以上需求，实时搜索/生成5-10家最匹配的公司，包含完整信息和匹配分数。`
       }
     ];
     
-    const result = await callAI(messages, 'match_companies') as { matches: { company_id: string; score: number; reason: string }[] };
+    const result = await callAI(messages, 'search_companies') as { 
+      companies: Array<{
+        id: string;
+        name: string;
+        city: string;
+        province: string;
+        industry: string[];
+        track: string;
+        register_year?: number;
+        last_round: string;
+        last_round_date?: string;
+        last_round_amount?: string;
+        investors?: string[];
+        headline?: string;
+        business_summary: string;
+        news_snippet?: string;
+        growth_stage?: string;
+        tags?: string[];
+        match_score: number;
+        match_reason: string;
+      }>
+    };
     
-    return result.matches.map((match) => ({
-      company_id: match.company_id,
-      match_score: match.score,
-      match_reason: match.reason,
-      company: companies.find(c => c.id === match.company_id)!
-    })).filter(m => m.company).sort((a, b) => b.match_score - a.match_score);
+    return result.companies.map((c) => ({
+      company_id: c.id,
+      match_score: c.match_score,
+      match_reason: c.match_reason,
+      company: {
+        id: c.id,
+        name: c.name,
+        city: c.city,
+        province: c.province,
+        industry: c.industry || [],
+        track: c.track,
+        register_year: c.register_year || new Date().getFullYear(),
+        last_round: c.last_round,
+        last_round_date: c.last_round_date || new Date().toISOString().split('T')[0],
+        last_round_amount: c.last_round_amount || '',
+        investors: c.investors || [],
+        headline: c.headline || c.business_summary.slice(0, 50),
+        business_summary: c.business_summary,
+        news_snippet: c.news_snippet || '',
+        growth_stage: c.growth_stage || '快速增长',
+        tags: c.tags || []
+      }
+    })).sort((a, b) => b.match_score - a.match_score);
   } catch (error) {
-    console.error('AI company matching failed, using local fallback:', error);
-    return matchCompaniesLocally(requirementProfile, candidateCompanies);
+    console.error('AI company search failed:', error);
+    throw error;
   }
 }
 

@@ -86,7 +86,7 @@ const MatchResults = () => {
       <footer className="border-t border-border mt-auto">
         <div className="container mx-auto px-4 py-4">
           <p className="text-center text-sm text-muted-foreground">
-            招商智能匹配 Agent Demo · 基于本地 Mock 数据演示
+            招商智能匹配 Agent · AI 实时搜索
           </p>
         </div>
       </footer>
