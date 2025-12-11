@@ -188,20 +188,36 @@ export interface AINewsItem {
   category: string;
   content: string;
   relatedKeywords: string[];
+  companyName?: string;
+  industry?: string;
+  fundingAmount?: string;
+  investors?: string[];
 }
 
-// Search news with AI
+// Search news with AI - 获取最近一周的完整新闻
 export async function searchNewsWithAI(): Promise<AINewsItem[]> {
+  // 计算最近一周的日期范围
+  const today = new Date();
+  const oneWeekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const dateRange = `${oneWeekAgo.toISOString().split('T')[0]} 到 ${today.toISOString().split('T')[0]}`;
+  
   try {
     const messages = [
       { role: 'system', content: NEWS_SEARCH_SYSTEM },
       { 
         role: 'user', 
-        content: `推荐3条投资新闻，要求：
-1. 标题必须含具体公司名（如智谱AI、地平线、宁德时代）
-2. 含具体融资金额和投资方
-3. 内容60-80字简述公司和融资
-不要用占位符！`
+        content: `推荐5条最近一周（${dateRange}）的投资融资或行业重要新闻，要求：
+1. 标题必须包含具体公司名（如智谱AI、月之暗面、地平线、宁德时代等）或具体行业事件
+2. 内容要完整详实，150-200字，包含：
+   - 融资金额、估值（如有）
+   - 投资方/领投方名单
+   - 公司业务简介和发展现状
+   - 本轮融资用途
+3. 日期必须是最近7天内的真实日期
+4. 来源要真实可信（36氪、投资界、钛媒体、界面新闻等）
+5. 类型可包括：融资、并购、IPO、政策、行业动态
+
+请返回完整、真实的新闻信息，不要用占位符！`
       }
     ];
     
