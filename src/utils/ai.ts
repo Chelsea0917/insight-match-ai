@@ -28,29 +28,29 @@ const NEWS_SEARCH_SYSTEM = `你是资讯推荐引擎。你的任务是使用联�
 
 【核心要求】
 1. 必须使用联网搜索功能搜索真实新闻
-2. 标题必须是新闻的原标题，不要改写或简化
-3. 内容必须是完整的新闻报道摘要（200-400字），包含事件背景、具体细节、涉及金额、投资方等关键信息
-4. 来源必须是真实的媒体名称（如36氪、投资界、钛媒体、界面新闻、IT桔子、创业邦等）
-5. 绝对不要编造或虚构任何内容
+2. 标题必须是新闻的原标题，不要改写
+3. 内容是新闻报道摘要（100-150字），包含关键信息
+4. 来源必须是真实的媒体名称
+5. 不要编造内容
 
 【输出格式】
-请以JSON格式返回5-8条新闻：
+请以JSON格式返回5条新闻：
 {
   "news": [
     {
       "id": "news_1",
-      "title": "新闻原标题（完整保留）",
-      "summary": "50-80字核心摘要",
-      "source": "真实媒体名称",
+      "title": "新闻原标题",
+      "summary": "40-60字摘要",
+      "source": "媒体名称",
       "publishDate": "YYYY-MM-DD",
-      "category": "AI/新能源/医疗/半导体/企业服务等",
-      "content": "200-400字完整新闻内容，包含事件详情、融资金额、投资方、公司背景、未来规划等",
-      "relatedKeywords": ["关键词1", "关键词2", "关键词3"]
+      "category": "AI/新能源/医疗/半导体等",
+      "content": "100-150字新闻内容摘要",
+      "relatedKeywords": ["关键词1", "关键词2"]
     }
   ]
 }
 
-请先搜索"投资融资 site:36kr.com OR site:pedaily.cn OR site:tmtpost.com"等关键词获取真实新闻。`;
+请搜索真实新闻并整理返回。`;
 
 // Call AI API through edge function
 async function callAI(messages: { role: string; content: string }[], type: string): Promise<unknown> {
@@ -228,16 +228,10 @@ export async function searchNewsWithAI(): Promise<AINewsItem[]> {
         role: 'user', 
         content: `请联网搜索 ${weekAgo.toISOString().split('T')[0]} 至 ${today.toISOString().split('T')[0]} 期间发布的真实投资融资新闻。
 
-搜索关键词建议：
-- "融资 完成" site:36kr.com
-- "投资" site:pedaily.cn  
-- "获得融资" site:tmtpost.com
-
 要求：
-1. 标题必须是新闻原标题，不要修改
-2. 内容要完整详细（200-400字），包含融资金额、投资方、公司业务、资金用途等
-3. 涵盖AI、新能源、医疗健康、半导体、企业服务等赛道
-4. 返回5-8条真实新闻，按JSON格式输出`
+- 标题使用原标题
+- 内容100-150字
+- 返回5条新闻，JSON格式`
       }
     ];
     
