@@ -146,8 +146,8 @@ serve(async (req) => {
       body.tool_choice = { type: 'function', function: { name: 'analyze_company' } };
     } else if (type === 'search_news') {
       // 使用Kimi联网搜索真实新闻
-      // 切换到支持联网搜索的模型
-      body.model = 'moonshot-v1-128k-latest';
+      // 使用支持联网搜索的模型
+      body.model = 'moonshot-v1-32k';
       // 启用Kimi内置联网搜索工具
       body.tools = [
         {
