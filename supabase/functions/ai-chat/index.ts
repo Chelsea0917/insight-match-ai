@@ -222,7 +222,6 @@ serve(async (req) => {
         if (jsonMatch) {
           result = JSON.parse(jsonMatch[0]);
         } else {
-          // 如果没有JSON格式，尝试解析整个内容
           result = JSON.parse(messageContent);
         }
       } catch (parseError) {
@@ -235,10 +234,28 @@ serve(async (req) => {
           try {
             result = JSON.parse(codeBlockMatch[1].trim());
           } catch {
+            // 继续尝试其他方法
+          }
+        }
+        
+        // 如果上面都失败，尝试提取已完整的新闻条目
+        if (!result) {
+          const newsItems: unknown[] = [];
+          // 匹配完整的新闻对象
+          const newsRegex = /\{\s*"id"\s*:\s*"[^"]+"\s*,\s*"title"\s*:\s*"[^"]+"\s*,\s*"summary"\s*:\s*"[^"]+"\s*,\s*"source"\s*:\s*"[^"]+"\s*,\s*"publishDate"\s*:\s*"[^"]+"\s*,\s*"category"\s*:\s*"[^"]+"\s*,\s*"content"\s*:\s*"[^"]+"\s*,\s*"relatedKeywords"\s*:\s*\[[^\]]+\]\s*\}/g;
+          let match;
+          while ((match = newsRegex.exec(messageContent)) !== null) {
+            try {
+              newsItems.push(JSON.parse(match[0]));
+            } catch { /* skip invalid */ }
+          }
+          
+          if (newsItems.length > 0) {
+            console.log(`Extracted ${newsItems.length} complete news items from truncated response`);
+            result = { news: newsItems };
+          } else {
             throw new Error('无法解析新闻数据，请重试');
           }
-        } else {
-          throw new Error('无法解析新闻数据，请重试');
         }
       }
     } else {
