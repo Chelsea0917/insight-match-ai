@@ -133,31 +133,133 @@ serve(async (req) => {
       ];
       body.tool_choice = { type: 'function', function: { name: 'search_companies' } };
     } else if (type === 'analyze_company') {
+      // 政府招商评估报告 - 详细结构化输出
       body.tools = [
         {
           type: 'function',
           function: {
-            name: 'analyze_company',
-            description: '分析公司与用户需求的匹配度，提供投资建议',
+            name: 'government_assessment',
+            description: '生成政府招商评估报告，用于辅助政府做出是否引入企业的理性决策',
             parameters: {
               type: 'object',
               properties: {
-                alignment_rationale: { type: 'string', description: '匹配度分析' },
-                risks: { type: 'array', items: { type: 'string' }, description: '潜在风险' },
-                venue_recommendation: { type: 'string', description: '适用场景建议' },
-                recommendation: {
-                  type: 'string',
-                  enum: ['推荐', '谨慎推荐', '不推荐'],
-                  description: '最终建议'
+                // 模块一：企业综合画像
+                companyProfile: {
+                  type: 'object',
+                  properties: {
+                    industryStage: { type: 'string', description: '企业所处行业阶段（如：成熟期、快速成长期、导入期等）' },
+                    coreTechnology: { type: 'string', description: '技术/产品核心竞争点' },
+                    developmentStage: { type: 'string', description: '企业当前发展阶段（成长期/扩张期/转型期）' },
+                    summary: { type: 'string', description: '从政府视角总结，不超过300字' }
+                  },
+                  required: ['industryStage', 'coreTechnology', 'developmentStage', 'summary']
                 },
-                recommendation_rationale: { type: 'string', description: '建议理由' }
+                // 模块二：项目真实性与落地判断
+                landingAssessment: {
+                  type: 'object',
+                  properties: {
+                    credibilityLevel: { type: 'string', enum: ['高可信', '中等可信', '存疑'], description: '可信度判断' },
+                    strategicAlignment: { type: 'string', description: '本次落地是否与企业战略高度一致' },
+                    irreplaceability: { type: 'string', description: '落地内容是否具有不可替代性（是否只是挂名总部）' },
+                    inputOutputLogic: { type: 'string', description: '投入产出逻辑是否清晰' },
+                    keyEvidence: { type: 'array', items: { type: 'string' }, description: '关键判断依据' }
+                  },
+                  required: ['credibilityLevel', 'strategicAlignment', 'irreplaceability', 'inputOutputLogic', 'keyEvidence']
+                },
+                // 模块三：与地方产业匹配度评估
+                industryMatch: {
+                  type: 'object',
+                  properties: {
+                    matchLevel: { type: 'string', enum: ['高度匹配', '匹配', '一般', '不匹配'], description: '总体匹配度' },
+                    dominantIndustryFit: { type: 'string', description: '与区域主导产业的契合度分析' },
+                    chainEffect: { type: 'string', description: '对本地产业链的补链/强链/延链作用' },
+                    clusterPotential: { type: 'string', description: '是否具备形成产业集聚或示范效应的潜力' }
+                  },
+                  required: ['matchLevel', 'dominantIndustryFit', 'chainEffect', 'clusterPotential']
+                },
+                // 模块四：可为地方带来的核心价值
+                coreValue: {
+                  type: 'object',
+                  properties: {
+                    industryValue: { type: 'string', description: '产业价值（技术、品牌、链主效应）' },
+                    economicValue: { type: 'string', description: '经济价值（税收、产值、就业）' },
+                    strategicValue: { type: 'string', description: '战略价值（示范、对外合作、区域能级）' }
+                  },
+                  required: ['industryValue', 'economicValue', 'strategicValue']
+                },
+                // 模块五：主要风险识别
+                riskAssessment: {
+                  type: 'object',
+                  properties: {
+                    financialRisk: {
+                      type: 'object',
+                      properties: {
+                        source: { type: 'string', description: '风险来源' },
+                        localImpact: { type: 'string', description: '对地方的潜在影响' }
+                      },
+                      required: ['source', 'localImpact']
+                    },
+                    businessRisk: {
+                      type: 'object',
+                      properties: {
+                        source: { type: 'string', description: '业务结构或增长可持续性风险来源' },
+                        localImpact: { type: 'string', description: '对地方的潜在影响' }
+                      },
+                      required: ['source', 'localImpact']
+                    },
+                    competitionRisk: {
+                      type: 'object',
+                      properties: {
+                        source: { type: 'string', description: '行业竞争与技术替代风险来源' },
+                        localImpact: { type: 'string', description: '对地方的潜在影响' }
+                      },
+                      required: ['source', 'localImpact']
+                    },
+                    policyRisk: {
+                      type: 'object',
+                      properties: {
+                        source: { type: 'string', description: '海外/政策/合规风险来源' },
+                        localImpact: { type: 'string', description: '对地方的潜在影响' }
+                      },
+                      required: ['source', 'localImpact']
+                    }
+                  },
+                  required: ['financialRisk', 'businessRisk', 'competitionRisk', 'policyRisk']
+                },
+                // 模块六：政府引入策略建议
+                introductionStrategy: {
+                  type: 'object',
+                  properties: {
+                    recommendIntroduce: { type: 'string', enum: ['是', '谨慎', '不建议'], description: '是否建议引入' },
+                    recommendedForm: { type: 'string', description: '建议引入形式（总部、区域中心、项目公司等）' },
+                    policyPriority: { type: 'array', items: { type: 'string' }, description: '政策支持优先级排序（资金/空间/场景/人才/基金）' },
+                    notRecommendedPolicy: { type: 'array', items: { type: 'string' }, description: '明确不建议给予的政策类型' }
+                  },
+                  required: ['recommendIntroduce', 'recommendedForm', 'policyPriority', 'notRecommendedPolicy']
+                },
+                // 模块七：招商谈判关键条款建议
+                negotiationTerms: { type: 'array', items: { type: 'string' }, description: '政府在谈判中必须锁定的5条核心条款' },
+                // 模块八：综合结论
+                conclusion: {
+                  type: 'object',
+                  properties: {
+                    projectType: { type: 'string', description: '项目类型' },
+                    overallRating: { type: 'number', description: '综合判断1-5星' },
+                    recommendedAction: { type: 'string', description: '推荐动作' },
+                    biggestOpportunity: { type: 'string', description: '最大机会点' },
+                    biggestRisk: { type: 'string', description: '最大风险点' }
+                  },
+                  required: ['projectType', 'overallRating', 'recommendedAction', 'biggestOpportunity', 'biggestRisk']
+                },
+                // 信息不足标注
+                insufficientInfo: { type: 'array', items: { type: 'string' }, description: '需补充信息的字段列表，如信息充足则为空数组' }
               },
-              required: ['alignment_rationale', 'risks', 'venue_recommendation', 'recommendation', 'recommendation_rationale']
+              required: ['companyProfile', 'landingAssessment', 'industryMatch', 'coreValue', 'riskAssessment', 'introductionStrategy', 'negotiationTerms', 'conclusion', 'insufficientInfo']
             }
           }
         }
       ];
-      body.tool_choice = { type: 'function', function: { name: 'analyze_company' } };
+      body.tool_choice = { type: 'function', function: { name: 'government_assessment' } };
     } else if (type === 'search_news') {
       // 使用tool calling获取结构化新闻数据 - 最近一周的完整新闻
       body.tools = [

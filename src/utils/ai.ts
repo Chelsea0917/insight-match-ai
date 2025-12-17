@@ -1,4 +1,4 @@
-import { Company, RequirementProfile, MatchedCompany, CompanyAnalysis } from '@/types/company';
+import { Company, RequirementProfile, MatchedCompany, CompanyAnalysis, GovernmentAssessment } from '@/types/company';
 import { supabase } from '@/integrations/supabase/client';
 
 // Import prompts from txt files
@@ -20,12 +20,22 @@ const COMPANY_SEARCH_SYSTEM = `你是招商搜索引擎，请根据"用户需求
 同时为每家公司给出0-100的匹配分数和匹配理由。
 按匹配分数从高到低排序。`;
 
-const COMPANY_ANALYSIS_SYSTEM = `你是招商顾问。根据用户需求与公司信息，用简短中文给出招商视角的分析。
-请分析：
-1. 这家公司与用户需求的匹配点（2-3条）
-2. 主要风险或不确定性（1-2条）
-3. 适合什么样的园区或载体（写一句话）
-4. 最终建议：推荐 / 谨慎推荐 / 不推荐（并用一句话说明原因）`;
+const GOVERNMENT_ASSESSMENT_SYSTEM = `你是政府招商评估专家，熟悉：
+- 产业政策与区域产业规划
+- 企业投融资、上市路径与财务风险
+- 产业链上下游协同与"链主/专精特新"判断
+- 政府招商决策逻辑（是否引入、如何引入、给什么政策）
+
+你的目标不是宣传企业，而是辅助政府做出是否引入该企业的理性决策。
+
+输出要求：
+1. 结构化、可对比、可直接用于内部汇报或领导决策
+2. 不得使用企业宣传口径
+3. 不得出现"建议进一步调研"作为结论
+4. 所有判断需有逻辑依据
+5. 如信息缺失，请在insufficientInfo字段中明确标注需要补充的信息，不得编造数据
+
+请基于提供的企业信息和招商需求，完成全面的政府招商评估。`;
 
 // Call AI API through edge function
 async function callAI(messages: { role: string; content: string }[], type: string): Promise<unknown> {
@@ -138,45 +148,89 @@ ${JSON.stringify(requirementProfile, null, 2)}
   }
 }
 
-// Analyze single company for requirement
+// 新版：政府招商评估报告
+export async function analyzeCompanyForGovernment(
+  requirementText: string,
+  company: Company
+): Promise<GovernmentAssessment> {
+  try {
+    const messages = [
+      { role: 'system', content: GOVERNMENT_ASSESSMENT_SYSTEM },
+      { 
+        role: 'user', 
+        content: `【招商需求/拟引入区域产业背景】：
+${requirementText}
+
+【企业信息】：
+企业名称：${company.name}
+成立时间：${company.register_year}年
+所在地：${company.city}，${company.province}
+主营行业：${company.industry.join('、')}
+细分赛道：${company.track}
+发展阶段：${company.growth_stage}
+最近融资轮次：${company.last_round}
+融资时间：${company.last_round_date}
+融资金额：${company.last_round_amount}
+投资方：${company.investors.join('、')}
+业务概述：${company.business_summary}
+企业标签：${company.tags.join('、')}
+最新动态：${company.headline}
+${company.news_snippet ? `详细动态：${company.news_snippet}` : ''}
+
+请完成全面的政府招商评估报告。`
+      }
+    ];
+    
+    const result = await callAI(messages, 'analyze_company') as GovernmentAssessment;
+    return result;
+  } catch (error) {
+    console.error('AI government assessment failed, using local fallback:', error);
+    return generateLocalGovernmentAssessment(requirementText, company);
+  }
+}
+
+// 旧版兼容：简化分析（保留供其他地方使用）
 export async function analyzeSingleCompanyForRequirement(
   requirementText: string,
   company: Company
 ): Promise<CompanyAnalysis> {
+  // 调用新版API获取详细报告，然后转换为简化格式
   try {
-    const messages = [
-      { role: 'system', content: COMPANY_ANALYSIS_SYSTEM },
-      { 
-        role: 'user', 
-        content: `【用户需求】：
-${requirementText}
-
-【公司信息】：
-${JSON.stringify(company, null, 2)}
-
-请给出招商分析建议。`
-      }
-    ];
-    
-    const result = await callAI(messages, 'analyze_company') as {
-      alignment_rationale: string;
-      risks: string[];
-      venue_recommendation: string;
-      recommendation: string;
-      recommendation_rationale: string;
-    };
-    
-    return {
-      matchPoints: [result.alignment_rationale],
-      risks: result.risks,
-      suitableVenue: result.venue_recommendation,
-      recommendation: result.recommendation as '推荐' | '谨慎推荐' | '不推荐',
-      recommendationReason: result.recommendation_rationale
-    };
+    const assessment = await analyzeCompanyForGovernment(requirementText, company);
+    return convertAssessmentToAnalysis(assessment);
   } catch (error) {
     console.error('AI company analysis failed, using local fallback:', error);
     return generateLocalAnalysis(requirementText, company);
   }
+}
+
+// 将详细报告转换为简化分析格式
+function convertAssessmentToAnalysis(assessment: GovernmentAssessment): CompanyAnalysis {
+  const matchPoints = [
+    assessment.companyProfile.summary,
+    assessment.coreValue.industryValue,
+    assessment.coreValue.economicValue
+  ].filter(Boolean);
+
+  const risks = [
+    assessment.riskAssessment.financialRisk.source,
+    assessment.riskAssessment.businessRisk.source,
+    assessment.riskAssessment.competitionRisk.source
+  ].filter(Boolean);
+
+  const recommendation = assessment.introductionStrategy.recommendIntroduce === '是' 
+    ? '推荐' 
+    : assessment.introductionStrategy.recommendIntroduce === '谨慎' 
+      ? '谨慎推荐' 
+      : '不推荐';
+
+  return {
+    matchPoints,
+    risks,
+    suitableVenue: assessment.introductionStrategy.recommendedForm,
+    recommendation,
+    recommendationReason: assessment.conclusion.recommendedAction
+  };
 }
 
 // News item type
@@ -504,6 +558,117 @@ function matchCompaniesLocally(profile: RequirementProfile, companies: Company[]
       company
     };
   }).sort((a, b) => b.match_score - a.match_score);
+}
+
+// 本地生成政府招商评估报告（作为fallback）
+function generateLocalGovernmentAssessment(requirementText: string, company: Company): GovernmentAssessment {
+  const hasTopInvestor = company.investors.some(inv => 
+    ['红杉', '高瓴', 'IDG', '经纬', '启明', '顺为', '腾讯', '阿里', '小米', '深创投'].some(top => inv.includes(top))
+  );
+
+  const isEarlyStage = company.last_round.includes('天使') || company.last_round.includes('Pre') || company.last_round.includes('种子');
+  const isGrowthStage = company.growth_stage === '快速增长';
+  const isMatureStage = company.growth_stage === '成熟期';
+
+  // 判断引入建议
+  let recommendIntroduce: '是' | '谨慎' | '不建议' = '是';
+  let overallRating = 4;
+  
+  if (isEarlyStage && !hasTopInvestor) {
+    recommendIntroduce = '谨慎';
+    overallRating = 3;
+  } else if (isMatureStage && hasTopInvestor) {
+    recommendIntroduce = '是';
+    overallRating = 5;
+  } else if (isGrowthStage) {
+    recommendIntroduce = '是';
+    overallRating = 4;
+  }
+
+  // 确定载体形式
+  let recommendedForm = '区域中心';
+  if (company.industry.some(i => ['智能制造', '机器人', '新能源', '新材料'].includes(i))) {
+    recommendedForm = '制造基地 + 研发中心';
+  } else if (company.industry.some(i => ['生物医药', '医疗健康'].includes(i))) {
+    recommendedForm = '研发中心 + 实验室';
+  } else if (company.industry.some(i => ['AI', '云计算', '大数据', 'SaaS'].includes(i))) {
+    recommendedForm = '区域总部 / 研发中心';
+  }
+
+  return {
+    companyProfile: {
+      industryStage: company.industry.some(i => ['AI', '新能源', '半导体'].includes(i)) ? '快速成长期' : '成熟期',
+      coreTechnology: `在${company.track}领域具备核心技术能力`,
+      developmentStage: isEarlyStage ? '成长期' : isGrowthStage ? '扩张期' : '成熟期',
+      summary: `${company.name}是一家专注于${company.track}领域的${company.growth_stage}企业，成立于${company.register_year}年，总部位于${company.city}。公司已完成${company.last_round}轮融资${company.last_round_amount ? `，金额${company.last_round_amount}` : ''}，${hasTopInvestor ? '获得头部投资机构背书' : '投资方阵容良好'}。${company.business_summary.slice(0, 100)}`
+    },
+    landingAssessment: {
+      credibilityLevel: hasTopInvestor && !isEarlyStage ? '高可信' : isEarlyStage ? '存疑' : '中等可信',
+      strategicAlignment: `企业当前处于${company.growth_stage}阶段，${isGrowthStage ? '有扩张需求，落地意愿较强' : '需评估实际扩张计划'}`,
+      irreplaceability: hasTopInvestor ? '企业具备一定行业影响力，落地具有实质意义' : '需进一步确认落地内容的不可替代性',
+      inputOutputLogic: company.last_round_amount ? `已融资${company.last_round_amount}，有一定资金实力支撑落地投入` : '【信息不足】缺少融资金额数据，难以判断投入产出比',
+      keyEvidence: [
+        `已完成${company.last_round}轮融资`,
+        hasTopInvestor ? '获得头部机构投资' : '投资方背景一般',
+        `企业处于${company.growth_stage}阶段`
+      ]
+    },
+    industryMatch: {
+      matchLevel: '匹配',
+      dominantIndustryFit: `${company.track}与当前产业发展方向具有一定契合度`,
+      chainEffect: `可为本地${company.industry[0]}产业链提供补链/强链作用`,
+      clusterPotential: hasTopInvestor && isGrowthStage ? '具备形成产业集聚效应的潜力' : '示范效应有限，需持续观察'
+    },
+    coreValue: {
+      industryValue: `在${company.track}领域具备技术积累，${hasTopInvestor ? '品牌效应较强' : '品牌效应一般'}`,
+      economicValue: isGrowthStage ? '预计可带来一定税收贡献和就业增长' : '【信息不足】缺少财务数据，难以量化经济价值',
+      strategicValue: hasTopInvestor ? '具有示范效应，可提升区域产业能级' : '战略价值有限'
+    },
+    riskAssessment: {
+      financialRisk: {
+        source: isEarlyStage ? '早期企业，盈利模式尚未验证，现金流压力较大' : '【信息不足】缺少详细财务数据',
+        localImpact: '如企业经营困难，可能导致项目停滞或撤离'
+      },
+      businessRisk: {
+        source: isGrowthStage ? '快速扩张期，管理能力和业务可持续性需持续验证' : '业务模式相对稳定',
+        localImpact: '如业务收缩，可能影响承诺的投资和就业指标'
+      },
+      competitionRisk: {
+        source: `${company.track}赛道竞争激烈，需关注技术迭代和市场变化`,
+        localImpact: '如丧失竞争优势，可能影响长期发展'
+      },
+      policyRisk: {
+        source: '【信息不足】缺少海外业务和合规情况信息',
+        localImpact: '如涉及出口管制或政策变化，可能影响业务开展'
+      }
+    },
+    introductionStrategy: {
+      recommendIntroduce,
+      recommendedForm,
+      policyPriority: ['空间载体', '人才政策', '场景资源', '产业基金', '资金补贴'],
+      notRecommendedPolicy: ['大额无条件现金补贴', '过度税收优惠']
+    },
+    negotiationTerms: [
+      `投资强度：明确约定固定资产投资额度和时间节点`,
+      `实际经营指标：约定年度营收、税收贡献等核心KPI`,
+      `业务实质落地要求：明确核心团队驻场人数、研发/生产在地化比例`,
+      `对赌条款：设置分期兑现机制，与业绩指标挂钩`,
+      `退出机制：约定未达标情况下的政策追缴和退出条款`
+    ],
+    conclusion: {
+      projectType: `${company.track}领域${isGrowthStage ? '成长型' : isMatureStage ? '成熟型' : '早期'}企业`,
+      overallRating,
+      recommendedAction: recommendIntroduce === '是' ? '建议积极对接，推进落地洽谈' : recommendIntroduce === '谨慎' ? '建议持续跟踪，待条件成熟后再议' : '暂不建议引入',
+      biggestOpportunity: hasTopInvestor ? '头部资本背书，具备较好的成长潜力和示范效应' : `在${company.track}领域有一定技术积累`,
+      biggestRisk: isEarlyStage ? '早期企业不确定性较大，落地承诺难以保障' : '【信息不足】缺少详细财务和业务数据'
+    },
+    insufficientInfo: [
+      '详细财务数据（营收、利润、现金流）',
+      '股权结构及实际控制人信息',
+      '本次落地的具体诉求和投资规模',
+      '海外业务占比和合规情况'
+    ]
+  };
 }
 
 function generateLocalAnalysis(requirementText: string, company: Company): CompanyAnalysis {
